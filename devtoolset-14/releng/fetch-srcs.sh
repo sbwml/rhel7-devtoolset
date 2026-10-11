@@ -54,6 +54,8 @@ urls_for() {
     systemtap-5.4.tar.gz) echo "https://sourceware.org/pub/systemtap/releases/systemtap-5.4.tar.gz";;
     valgrind-3.26.0.tar.bz2) echo "https://sourceware.org/pub/valgrind/valgrind-3.26.0.tar.bz2";;
     standards.info.gz) echo "https://ftp.gnu.org/gnu/binutils/standards.info.gz";;
+    gts-annobin-plugin-select.sh) echo "https://sources.stream.centos.org/sources/rpms/gcc-toolset-14/gts-annobin-plugin-select.sh/sha512/f5e5f4dc054bdd09c6d185bc3c671376ff8b825c8fa3f2969e25e10358405aa105f74154c63b6dc025cbe7e09eb24693664048685aaf481cc2a65d12ad9476b8/gts-annobin-plugin-select.sh";;
+    README) echo "https://sources.stream.centos.org/sources/rpms/gcc-toolset-14/README/sha512/a4ed9ea6bb2cdc32cc908cdaf56faf6a813712c2b807a31e286a5fa2faead5285be025363b66d699e30afe34213c66421b76321ef0ca7b57e5e3c5610d32c3c8/README";;
     *) echo "";;
   esac
 }
@@ -90,6 +92,7 @@ fetch_for() {
   local comp="$1"
   local src="$SRCDIR/specs/$comp-el7/sources"
   [ -f "$src" ] || src="$SRCDIR/specs/$comp-el10/sources"
+  [ -f "$src" ] || src="$SRCDIR/specs/$comp/sources"
   [ -f "$src" ] || { echo "!! no sources: $comp"; return 1; }
   echo "=== fetch: $comp"
   while IFS= read -r line; do

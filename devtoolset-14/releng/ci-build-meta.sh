@@ -15,6 +15,8 @@ SPEC=$(prepare_spec meta) || { echo "!! prepare_spec failed"; exit 1; }
 log "spec: $SPEC"
 log "---- spec head ----"; sed -n '1,20p' "$SPEC"
 
+bash "$SRCDIR/releng/fetch-srcs.sh" meta "$BUILD_ROOT/SOURCES" 2>&1 | tail -20
+
 log "rpmbuild -ba $SPEC"
 ( while :; do sleep 60; echo "[heartbeat $(date '+%H:%M:%S')] meta building..."; done ) &
 HB=$!

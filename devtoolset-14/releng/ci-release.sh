@@ -34,7 +34,6 @@ for COMP in $ORDER; do
   SPEC=$(prepare_spec "$COMP") || { echo "!! prepare_spec failed: $COMP"; RC[$COMP]=1; continue; }
   case "$COMP" in
     gcc) bash "$SRCDIR/releng/fetch-gcc-srcs.sh" "$BUILD_ROOT/SOURCES" 2>&1 | tail -30 ;;
-    meta) : ;;
     *)   bash "$SRCDIR/releng/fetch-srcs.sh" "$COMP" "$BUILD_ROOT/SOURCES" 2>&1 | tail -20 ;;
   esac
   install_built_prereqs "$COMP"
