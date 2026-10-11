@@ -345,7 +345,11 @@ Requires: glibc >= 2.3.90-35
 Requires: glibc >= 2.16
 %endif
 %endif
+%if 0%{?scl:1}
+Requires: libgcc >= 4.1.2-43
+%else
 Requires: %{?scl_prefix}libgcc >= %{version}-%{release}
+%endif
 Requires: %{?scl_prefix}libgomp = %{version}-%{release}
 # lto-wrapper invokes make
 Requires: make
@@ -441,6 +445,7 @@ chmod 755 %{buildroot}%{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_major}
 The gcc package contains the GNU Compiler Collection version %{gcc_major}.
 You'll need this package in order to compile C code.
 
+%if 0%{!?scl:1}
 %package -n %{?scl_prefix}libgcc
 Summary: GCC version %{gcc_major} shared support library
 Autoreq: false
@@ -463,6 +468,7 @@ Obsoletes: libmpx-static
 %description -n %{?scl_prefix}libgcc
 This package contains GCC shared support library which is needed
 e.g. for exception handling support.
+%endif
 
 %package c++
 Summary: C++ support for GCC
@@ -2305,10 +2311,15 @@ mv %{buildroot}%{_prefix}/%{_lib}/libitm.spec $FULLPATH/
 mv %{buildroot}%{_prefix}/%{_lib}/libsanitizer.spec $FULLPATH/
 %endif
 
+%if 0%{?scl:1}
+rm -f %{buildroot}%{_prefix}/%{_lib}/libgcc_s*
+rm -f %{buildroot}/%{_lib}/libgcc_s*
+%else
 mkdir -p %{buildroot}/%{_lib}
 mv -f %{buildroot}%{_prefix}/%{_lib}/libgcc_s.so.1 %{buildroot}/%{_lib}/libgcc_s-%{gcc_major}-%{DATE}.so.1
 chmod 755 %{buildroot}/%{_lib}/libgcc_s-%{gcc_major}-%{DATE}.so.1
 ln -sf libgcc_s-%{gcc_major}-%{DATE}.so.1 %{buildroot}/%{_lib}/libgcc_s.so.1
+%endif
 %ifarch %{ix86} x86_64 ppc ppc64 ppc64p7 ppc64le %{arm} aarch64 riscv64
 rm -f $FULLPATH/libgcc_s.so
 echo '/* GNU ld script
@@ -3058,28 +3069,6 @@ mkdir %{buildroot}/%{sysroot_prefix}/test-support
 cp obj-%{gcc_target_platform}/gcc/auto-host.h %{buildroot}/%{sysroot_prefix}/test-support/
 %endif
 
-###############################################################################
-# devtoolset-14 SCL integration
-# (CentOS 7 / rpm 4.11, install root /opt/rh/devtoolset-14/root)
-###############################################################################
-%if %{?scl:1}%{!?scl:0}
-install -d -m 755 %{buildroot}/etc/scl/prefixes
-echo "%{_scl_root}" > devtoolset-14.prefix
-install -p -m 644 devtoolset-14.prefix %{buildroot}/etc/scl/prefixes/devtoolset-14
-
-install -d -m 755 %{buildroot}%{_scl_scripts} 2>/dev/null || install -d -m 755 %{buildroot}%{_scl_root}/enable.d
-cat > enable <<'ENABLE_EOF'
-export PATH=%{_scl_root}/usr/bin${PATH:+:${PATH}}
-export MANPATH=%{_scl_root}/usr/share/man${MANPATH:+:${MANPATH}}
-export INFOPATH=%{_scl_root}/usr/share/info${INFOPATH:+:${INFOPATH}}
-export LD_LIBRARY_PATH=%{_scl_root}/usr/lib64:%{_scl_root}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-export PKG_CONFIG_PATH=%{_scl_root}/usr/lib64/pkgconfig:%{_scl_root}/usr/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}
-ENABLE_EOF
-# Expand rpm macros
-sed -i "s|%{_scl_root}|/opt/rh/devtoolset-14/root|g" enable
-install -p -m 755 enable %{buildroot}/%{_scl_root}/enable
-install -d -m 755 %{buildroot}/%{_scl_root}/etc/alternatives %{buildroot}/%{_scl_root}/var/lib/alternatives
-%endif
 
 %check
 %ifnarch riscv64
@@ -3149,6 +3138,7 @@ if [ $1 = 0 ]; then
   %{_sbindir}/update-alternatives --remove go %{_prefix}/bin/go.gcc
 fi
 
+%if 0%{!?scl:1}
 # Because glibc Prereq's libgcc and /sbin/ldconfig
 # comes from glibc, it might not exist yet when
 # libgcc is installed
@@ -3158,6 +3148,7 @@ if [ -x /sbin/ldconfig ]; then /sbin/ldconfig; fi || :
 
 %postun -n %{?scl_prefix}libgcc
 if [ -x /sbin/ldconfig ]; then /sbin/ldconfig; fi || :
+%endif
 
 %post -n %{?scl_prefix}libstdc++ -p /sbin/ldconfig
 
@@ -3228,10 +3219,6 @@ if [ -x /sbin/ldconfig ]; then /sbin/ldconfig; fi || :
 %postun -n %{?scl_prefix}libgo -p /sbin/ldconfig
 
 %files -f %{name}.lang
-%if %{?scl:1}%{!?scl:0}
-/etc/scl/prefixes/devtoolset-14
-%{_scl_root}/enable
-%endif
 %{_prefix}/bin/cc
 %{_prefix}/bin/c89
 %{_prefix}/bin/c99
@@ -3609,11 +3596,13 @@ if [ -x /sbin/ldconfig ]; then /sbin/ldconfig; fi || :
 %dir %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_major}
 %{_prefix}/libexec/gcc/%{gcc_target_platform}/%{gcc_major}/cc1
 
+%if 0%{!?scl:1}
 %files -n %{?scl_prefix}libgcc
 /%{_lib}/libgcc_s-%{gcc_major}-%{DATE}.so.1
 /%{_lib}/libgcc_s.so.1
 %{!?_licensedir:%global license %%doc}
 %license gcc/COPYING* COPYING.RUNTIME
+%endif
 
 %files c++
 %{_prefix}/bin/%{gcc_target_platform}-*++

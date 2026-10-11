@@ -78,16 +78,6 @@ ln -sf make %{buildroot}%{_bindir}/gmake
 ln -sf make.1 %{buildroot}%{_mandir}/man1/gmake.1
 rm -f %{buildroot}%{_infodir}/dir
 
-# SCL integration
-%if %{?scl:1}%{!?scl:0}
-install -d -m 755 %{buildroot}/etc/scl/prefixes
-dirname %{_scl_root} > devtoolset-14.prefix
-install -p -m 644 devtoolset-14.prefix %{buildroot}/etc/scl/prefixes/devtoolset-14
-
-echo "export PATH=%{_scl_root}/usr/bin:\$PATH" > enable.scl
-echo "export LD_LIBRARY_PATH=%{_scl_root}/usr/lib64:%{_scl_root}/usr/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}" >> enable.scl
-install -p -m 755 enable.scl %{buildroot}/%{_scl_root}/enable
-%endif
 
 %find_lang make
 
@@ -102,10 +92,6 @@ echo ============END TESTING===========
 %{_scl_root}/usr/bin/*
 %{_scl_root}/usr/share/man/man*/*
 %{_scl_root}/usr/share/info/*.info*
-%if %{?scl:1}%{!?scl:0}
-/etc/scl/prefixes/devtoolset-14
-%{_scl_root}/enable
-%endif
 
 %files devel
 %{_scl_root}/usr/include/gnumake.h
