@@ -1,0 +1,142 @@
+From 580664d1b66a5d98e5e87d9ff728566b309e89b1 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?J=C3=B8rgen=20Kvalsvik?= <j@lambda.is>
+Date: Wed, 7 Aug 2024 17:33:31 +0200
+Subject: [PATCH] gcov: branch, conds, calls in function summaries
+
+The gcov function summaries only output the covered lines, not the
+branches and calls. Since the function summaries is an opt-in it
+probably makes sense to also include branch coverage, calls, and
+condition coverage.
+
+$ gcc --coverage -fpath-coverage hello.c -o hello
+$ ./hello
+
+Before:
+    $ gcov -f hello
+    Function 'main'
+    Lines executed:100.00% of 4
+
+    Function 'fn'
+    Lines executed:100.00% of 7
+
+    File 'hello.c'
+    Lines executed:100.00% of 11
+    Creating 'hello.c.gcov'
+
+After:
+    $ gcov -f hello
+    Function 'main'
+    Lines executed:100.00% of 3
+    No branches
+    Calls executed:100.00% of 1
+
+    Function 'fn'
+    Lines executed:100.00% of 7
+    Branches executed:100.00% of 4
+    Taken at least once:50.00% of 4
+    No calls
+
+    File 'hello.c'
+    Lines executed:100.00% of 10
+    Creating 'hello.c.gcov'
+
+    Lines executed:100.00% of 10
+
+With conditions:
+    $ gcov -fg hello
+    Function 'main'
+    Lines executed:100.00% of 3
+    No branches
+    Calls executed:100.00% of 1
+    No conditions
+
+    Function 'fn'
+    Lines executed:100.00% of 7
+    Branches executed:100.00% of 4
+    Taken at least once:50.00% of 4
+    Condition outcomes covered:100.00% of 8
+    No calls
+
+    File 'hello.c'
+    Lines executed:100.00% of 10
+    Creating 'hello.c.gcov'
+
+    Lines executed:100.00% of 10
+
+gcc/ChangeLog:
+
+	* gcov.cc (generate_results): Count branches, conditions.
+	(function_summary): Output branch, calls, condition count.
+---
+ gcc/gcov.cc | 48 +++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 43 insertions(+), 5 deletions(-)
+
+diff --git a/gcc/gcov.cc b/gcc/gcov.cc
+index 96fdc50f0e8..f9ab93b54d9 100644
+--- a/gcc/gcov.cc
++++ b/gcc/gcov.cc
+@@ -1687,11 +1687,19 @@ generate_results (const char *file_name)
+       memset (&coverage, 0, sizeof (coverage));
+       coverage.name = fn->get_name ();
+       add_line_counts (flag_function_summary ? &coverage : NULL, fn);
+-      if (flag_function_summary)
+-	{
+-	  function_summary (&coverage);
+-	  fnotice (stdout, "\n");
+-	}
++
++      if (!flag_function_summary)
++	continue;
++
++      for (const block_info& block : fn->blocks)
++	for (arc_info *arc = block.succ; arc; arc = arc->succ_next)
++	  add_branch_counts (&coverage, arc);
++
++      for (const block_info& block : fn->blocks)
++	add_condition_counts (&coverage, &block);
++
++      function_summary (&coverage);
++      fnotice (stdout, "\n");
+     }
+ 
+   name_map needle;
+@@ -2764,6 +2772,36 @@ function_summary (const coverage_info *coverage)
+ {
+   fnotice (stdout, "%s '%s'\n", "Function", coverage->name);
+   executed_summary (coverage->lines, coverage->lines_executed);
++
++  if (coverage->branches)
++    {
++      fnotice (stdout, "Branches executed:%s of %d\n",
++	       format_gcov (coverage->branches_executed, coverage->branches, 2),
++	       coverage->branches);
++      fnotice (stdout, "Taken at least once:%s of %d\n",
++	       format_gcov (coverage->branches_taken, coverage->branches, 2),
++			    coverage->branches);
++    }
++  else
++    fnotice (stdout, "No branches\n");
++
++  if (coverage->calls)
++    fnotice (stdout, "Calls executed:%s of %d\n",
++	     format_gcov (coverage->calls_executed, coverage->calls, 2),
++	     coverage->calls);
++  else
++    fnotice (stdout, "No calls\n");
++
++  if (flag_conditions)
++    {
++      if (coverage->conditions)
++	fnotice (stdout, "Condition outcomes covered:%s of %d\n",
++		 format_gcov (coverage->conditions_covered,
++			      coverage->conditions, 2),
++		 coverage->conditions);
++      else
++	fnotice (stdout, "No conditions\n");
++    }
+ }
+ 
+ /* Output summary info for a file.  */
+-- 
+2.51.0
+

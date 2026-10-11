@@ -1,0 +1,66 @@
+From FEDORA_PATCHES Mon Sep 17 00:00:00 2001
+From: Tom de Vries <tdevries@suse.de>
+Date: Fri, 7 Mar 2025 09:25:33 +0100
+Subject: gdb-rhel-7329-vandps-clobbers-registers-2-of-13.patch
+
+;; [gdb/tdep] Refactor amd64_get_unused_input_int_reg, part 2
+;; (Tom de Vries, RHEL-7329)
+
+I noticed that amd64_get_unused_input_int_reg uses a signed int for a bit
+mask:
+...
+  /* 1 bit for each reg */
+  int used_regs_mask = 0;
+...
+
+There's an assert:
+...
+  gdb_assert (used_regs_mask < 256);
+...
+which is meant to assert on register numbers >= 8, but if for instance
+sizeof (used_regs_mask) == 4 and used_regs_mask == (1 << 31), then that is not
+caught because of the signedness.
+
+We could fix this by changing the type to unsigned int, but that only
+guarantees 16 bits in the reg mask.  Intel CPUs with the APX extension support
+32 int registers.
+
+The implementation of amd64_get_unused_input_int_reg doesn't support analyzing
+registers with register number >= 8 yet, but now that we're changing the type,
+it seems like a good idea to anticipate this.
+
+Fix this by using uint32_t.
+
+Likewise, update the loop over the reg mask:
+...
+    for (i = 0; i < 8; ++i)
+      {
+	if (! (used_regs_mask & (1 << i)))
+	  return i;
+...
+to handle any used_regs_mask value rather than just those for
+register number < 8.
+
+Tested on x86_64-linux.
+
+diff --git a/gdb/amd64-tdep.c b/gdb/amd64-tdep.c
+--- a/gdb/amd64-tdep.c
++++ b/gdb/amd64-tdep.c
+@@ -1217,7 +1217,7 @@ static int
+ amd64_get_unused_input_int_reg (const struct amd64_insn *details)
+ {
+   /* 1 bit for each reg */
+-  int used_regs_mask = 0;
++  uint32_t used_regs_mask = 0;
+ 
+   /* There can be at most 3 int regs used as inputs in an insn, and we have
+      7 to choose from (RAX ... RDI, sans RSP).
+@@ -1268,7 +1268,7 @@ amd64_get_unused_input_int_reg (const struct amd64_insn *details)
+   {
+     int i;
+ 
+-    for (i = 0; i < 8; ++i)
++    for (i = 0; i < 32; ++i)
+       {
+ 	if (! (used_regs_mask & (1 << i)))
+ 	  return i;

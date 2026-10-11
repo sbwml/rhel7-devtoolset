@@ -1,0 +1,26 @@
+diff --git a/gcc/testsuite/lib/asan-dg.exp b/gcc/testsuite/lib/asan-dg.exp
+index 6bd3c211611a..cc7f30f10135 100644
+--- a/gcc/testsuite/lib/asan-dg.exp
++++ b/gcc/testsuite/lib/asan-dg.exp
+@@ -303,7 +303,6 @@ proc asan-gtest { args } {
+ 
+     if { ![info exists asan_last_gtest_test_list] } { return }
+     if { [llength $asan_last_gtest_test_list] == 0 } { return }
+-    if { ![isnative] || [is_remote target] } { return }
+ 
+     set gtest_test_list $asan_last_gtest_test_list
+     unset asan_last_gtest_test_list
+diff --git a/gcc/testsuite/lib/gcc-dg.exp b/gcc/testsuite/lib/gcc-dg.exp
+index 228c21d12071..49c9f5a8796d 100644
+--- a/gcc/testsuite/lib/gcc-dg.exp
++++ b/gcc/testsuite/lib/gcc-dg.exp
+@@ -459,9 +459,6 @@ if { [info procs ${tool}_load] != [list] \
+ 	set saved_target_env_var [list]
+ 	if { [info exists set_target_env_var] \
+ 	     && [llength $set_target_env_var] != 0 } {
+-	    if { [is_remote target] } {
+-		return [list "unsupported" ""]
+-	    }
+ 	    set-target-env-var
+ 	}
+ 	set result [eval [list saved_${tool}_load $program] $args]

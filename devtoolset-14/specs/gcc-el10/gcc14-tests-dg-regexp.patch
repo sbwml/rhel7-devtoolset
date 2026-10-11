@@ -1,0 +1,40 @@
+commit 8641223df928a12246d23147d5ad8073769d5765
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Wed Dec 3 16:15:39 2025 +0000
+
+    testsuite: Escape \r in dg-regexp test names
+    
+    When the regular expression matched in a test using dg-regexp contains
+    a newline (written in the source as \n inside ""), there is logic in
+    the testsuite to escape this so the test name after PASS: or FAIL: in
+    the testsuite output has \n instead of that newline.
+    
+    When it contains a carriage return (from \r in the source), however,
+    there is no such escaping, and the test names in the .sum and .log
+    files thus contain a literal CR character in the middle of a test
+    name.  The process of combining test results from parallel-run parts
+    of each testsuite then turns that CR into end-of-line, losing the rest
+    of the test name (whereas if you use runtest directly, e.g. via
+    contrib/test_installed, the full test name remains in the .sum file
+    because there is no such postprocessing).  I suspect the handling of
+    newlines by Python (used for one of the scripts involved in combining
+    results) is responsible for test names getting truncated like this.
+    To avoid this truncation, escape CR like newlines are escaped.
+    
+    Bootstrapped with no regressions for x86_64-pc-linux-gnu.
+    
+            * lib/gcc-defs.exp (handle-dg-regexps): Also escape \r in output.
+
+diff --git a/gcc/testsuite/lib/gcc-defs.exp b/gcc/testsuite/lib/gcc-defs.exp
+index d66c833452cc..61bf5f8e0a9d 100644
+--- a/gcc/testsuite/lib/gcc-defs.exp
++++ b/gcc/testsuite/lib/gcc-defs.exp
+@@ -553,7 +553,7 @@ proc handle-dg-regexps { text } {
+ 
+ 	# Escape newlines in $rexp so that we can print them in
+ 	# pass/fail results.
+-	set escaped_regex [string map {"\n" "\\n"} $rexp]
++	set escaped_regex [string map {"\n" "\\n" "\r" "\\r"} $rexp]
+ 	verbose "escaped_regex: ${escaped_regex}" 4
+ 
+ 	set title "$testname_with_flags dg-regexp $linenum"

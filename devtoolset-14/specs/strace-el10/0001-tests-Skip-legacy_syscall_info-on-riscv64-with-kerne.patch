@@ -1,0 +1,57 @@
+From ba41bc0da4b841d9343b7644a3d8c3bd5e3f2780 Mon Sep 17 00:00:00 2001
+From: Andrea Bolognani <abologna@redhat.com>
+Date: Wed, 4 Dec 2024 11:00:11 +0100
+Subject: [PATCH] tests: Skip legacy_syscall_info on riscv64 with kernel 6.11+
+
+Kernel commit 61119394631f219e ("riscv: entry: always initialize
+regs->a0 to -ENOSYS") made the legacy API unusable for us, which
+means that the test always fails when using a recent kernel.
+
+Closes: https://github.com/strace/strace/issues/315
+Signed-off-by: Andrea Bolognani <abologna@redhat.com>
+---
+ tests/init.sh                  | 11 +++++++++++
+ tests/legacy_syscall_info.test |  5 +++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/tests/init.sh b/tests/init.sh
+index 2e772940b..5aae80dd8 100644
+--- a/tests/init.sh
++++ b/tests/init.sh
+@@ -382,6 +382,17 @@ require_min_kernel_version_or_skip()
+ 		skip_ "the kernel release $uname_r is not $1 or newer"
+ }
+ 
++# Usage: require_max_kernel_version_or_skip 6.11
++require_max_kernel_version_or_skip()
++{
++	local uname_r
++	uname_r="$(uname -r)"
++
++	[ "$(kernel_version_code "$uname_r")" -lt \
++	  "$(kernel_version_code "$1")" ] ||
++		skip_ "the kernel release $uname_r is $1 or newer"
++}
++
+ # Usage: require_min_nproc 2
+ require_min_nproc()
+ {
+diff --git a/tests/legacy_syscall_info.test b/tests/legacy_syscall_info.test
+index 7275fcb72..4ae26dac7 100755
+--- a/tests/legacy_syscall_info.test
++++ b/tests/legacy_syscall_info.test
+@@ -10,6 +10,11 @@
+ 
+ . "${srcdir=.}/init.sh"
+ 
++# The legacy API is broken on riscv64 with kernel 6.11+
++# https://github.com/strace/strace/issues/315
++[ "$(uname -m)" != "riscv64" ] ||
++    require_max_kernel_version_or_skip 6.11
++
+ check_prog grep
+ $STRACE -d -enone / > /dev/null 2> "$LOG" ||:
+ grep -x "[^:]*strace: PTRACE_GET_SYSCALL_INFO works" "$LOG" > /dev/null ||
+-- 
+2.49.0
+

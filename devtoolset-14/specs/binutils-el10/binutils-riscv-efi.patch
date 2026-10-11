@@ -1,0 +1,907 @@
+diff -Naru binutils-2.41.orig/bfd/bfd.c binutils-2.41/bfd/bfd.c
+--- binutils-2.41.orig/bfd/bfd.c	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/bfd.c	2025-04-21 01:55:55.730967442 +0200
+@@ -1948,6 +1948,7 @@
+       || strcmp (name, "pe-arm-wince-little") == 0
+       || strcmp (name, "pei-arm-wince-little") == 0
+       || strcmp (name, "pei-loongarch64") == 0
++      || strcmp (name, "pei-riscv64-little") == 0
+       || strcmp (name, "aixcoff-rs6000") == 0
+       || strcmp (name, "aix5coff64-rs6000") == 0)
+     return 1;
+diff -Naru binutils-2.41.orig/bfd/coffcode.h binutils-2.41/bfd/coffcode.h
+--- binutils-2.41.orig/bfd/coffcode.h	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/coffcode.h	2025-04-21 01:55:55.731730352 +0200
+@@ -2182,6 +2182,12 @@
+       machine = internal_f->f_flags & F_LOONGARCH64_ARCHITECTURE_MASK;
+       break;
+ #endif
++#ifdef RISCV64MAGIC
++    case RISCV64MAGIC:
++      arch = bfd_arch_riscv;
++      machine = bfd_mach_riscv64;
++      break;
++#endif
+ #ifdef Z80MAGIC
+     case Z80MAGIC:
+       arch = bfd_arch_z80;
+@@ -2753,6 +2759,12 @@
+       return true;
+ #endif
+ 
++#ifdef RISCV64MAGIC
++    case bfd_arch_riscv:
++      * magicp = RISCV64MAGIC;
++      return true;
++#endif
++
+ #ifdef ARMMAGIC
+     case bfd_arch_arm:
+ #ifdef ARM_WINCE
+@@ -3936,7 +3948,7 @@
+     internal_f.f_flags |= IMAGE_FILE_LARGE_ADDRESS_AWARE;
+ #endif
+ 
+-#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+ #ifdef COFF_WITH_PE
+   internal_f.f_flags |= IMAGE_FILE_32BIT_MACHINE;
+ #else
+@@ -3994,6 +4006,11 @@
+ #define __A_MAGIC_SET__
+     internal_a.magic = ZMAGIC;
+ #endif
++
++#if defined(RISCV64)
++#define __A_MAGIC_SET__
++    internal_a.magic = ZMAGIC;
++#endif
+ 
+ #if defined MCORE_PE
+ #define __A_MAGIC_SET__
+diff -Naru binutils-2.41.orig/bfd/coff-riscv64.c binutils-2.41/bfd/coff-riscv64.c
+--- binutils-2.41.orig/bfd/coff-riscv64.c	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/bfd/coff-riscv64.c	2025-04-21 01:55:55.731155994 +0200
+@@ -0,0 +1,130 @@
++/* BFD back-end for RISC-V 64-bit COFF files.
++   Copyright (C) 2023 Free Software Foundation, Inc.
++
++   This file is part of BFD, the Binary File Descriptor library.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
++   MA 02110-1301, USA.  */
++
++#include "sysdep.h"
++#include "bfd.h"
++#include "libbfd.h"
++#include "coff/riscv64.h"
++#include "coff/internal.h"
++#include "coff/pe.h"
++#include "libcoff.h"
++#include "libiberty.h"
++
++#define COFF_DEFAULT_SECTION_ALIGNMENT_POWER  2
++
++#ifndef bfd_pe_print_pdata
++#define bfd_pe_print_pdata      NULL
++#endif
++
++#define RTYPE2HOWTO(cache_ptr, dst)             \
++  (cache_ptr)->howto = NULL
++
++/* Return TRUE if this relocation should
++   appear in the output .reloc section.  */
++
++static bool
++in_reloc_p (bfd *abfd ATTRIBUTE_UNUSED,
++	    reloc_howto_type *howto)
++{
++  return !howto->pc_relative;
++}
++
++#include "coffcode.h"
++
++/* Target vectors.  */
++const bfd_target
++#ifdef TARGET_SYM
++  TARGET_SYM =
++#else
++  riscv64_coff_vec =
++#endif
++{
++#ifdef TARGET_NAME
++  TARGET_NAME,
++#else
++ "coff-riscv64-little",		/* Name.  */
++#endif
++  bfd_target_coff_flavour,
++  BFD_ENDIAN_LITTLE,		/* Data byte order is little.  */
++  BFD_ENDIAN_LITTLE,		/* Header byte order is little.  */
++
++  (HAS_RELOC | EXEC_P		/* Object flags.  */
++   | HAS_LINENO | HAS_DEBUG
++   | HAS_SYMS | HAS_LOCALS | WP_TEXT | D_PAGED | BFD_COMPRESS | BFD_DECOMPRESS),
++
++  (SEC_HAS_CONTENTS | SEC_ALLOC | SEC_LOAD | SEC_RELOC /* Section flags.  */
++#if defined(COFF_WITH_PE)
++   | SEC_LINK_ONCE | SEC_LINK_DUPLICATES | SEC_READONLY | SEC_DEBUGGING
++#endif
++   | SEC_CODE | SEC_DATA | SEC_EXCLUDE ),
++
++#ifdef TARGET_UNDERSCORE
++  TARGET_UNDERSCORE,		/* Leading underscore.  */
++#else
++  0,				/* Leading underscore.  */
++#endif
++  '/',				/* Ar_pad_char.  */
++  15,				/* Ar_max_namelen.  */
++  0,				/* match priority.  */
++  TARGET_KEEP_UNUSED_SECTION_SYMBOLS, /* keep unused section symbols.  */
++
++     /* Data conversion functions.  */
++     bfd_getl64, bfd_getl_signed_64, bfd_putl64,
++     bfd_getl32, bfd_getl_signed_32, bfd_putl32,
++     bfd_getl16, bfd_getl_signed_16, bfd_putl16, /* Data.  */
++     /* Header conversion functions.  */
++     bfd_getl64, bfd_getl_signed_64, bfd_putl64,
++     bfd_getl32, bfd_getl_signed_32, bfd_putl32,
++     bfd_getl16, bfd_getl_signed_16, bfd_putl16, /* Hdrs.  */
++
++  /* Note that we allow an object file to be treated as a core file as well.  */
++  {				/* bfd_check_format.  */
++    _bfd_dummy_target,
++    coff_object_p,
++    bfd_generic_archive_p,
++    coff_object_p
++  },
++  {				/* bfd_set_format.  */
++    _bfd_bool_bfd_false_error,
++    coff_mkobject,
++    _bfd_generic_mkarchive,
++    _bfd_bool_bfd_false_error
++  },
++  {				/* bfd_write_contents.  */
++    _bfd_bool_bfd_false_error,
++    coff_write_object_contents,
++    _bfd_write_archive_contents,
++    _bfd_bool_bfd_false_error
++  },
++
++  BFD_JUMP_TABLE_GENERIC (coff),
++  BFD_JUMP_TABLE_COPY (coff),
++  BFD_JUMP_TABLE_CORE (_bfd_nocore),
++  BFD_JUMP_TABLE_ARCHIVE (_bfd_archive_coff),
++  BFD_JUMP_TABLE_SYMBOLS (coff),
++  BFD_JUMP_TABLE_RELOCS (coff),
++  BFD_JUMP_TABLE_WRITE (coff),
++  BFD_JUMP_TABLE_LINK (coff),
++  BFD_JUMP_TABLE_DYNAMIC (_bfd_nodynamic),
++
++  NULL,
++
++  COFF_SWAP_TABLE
++};
+diff -Naru binutils-2.41.orig/bfd/config.bfd binutils-2.41/bfd/config.bfd
+--- binutils-2.41.orig/bfd/config.bfd	2025-04-21 01:54:43.975354100 +0200
++++ binutils-2.41/bfd/config.bfd	2025-04-21 01:55:55.731918168 +0200
+@@ -1216,22 +1216,22 @@
+ #ifdef BFD64
+   riscvbe-*-* | riscv32be*-*-*)
+     targ_defvec=riscv_elf32_be_vec
+-    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec"
++    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec riscv64_pei_vec"
+     want64=true
+     ;;
+   riscv-*-* | riscv32*-*-*)
+     targ_defvec=riscv_elf32_vec
+-    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec"
++    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec riscv64_pei_vec"
+     want64=true
+     ;;
+   riscv64be*-*-*)
+     targ_defvec=riscv_elf64_be_vec
+-    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec"
++    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec riscv64_pei_vec"
+     want64=true
+     ;;
+   riscv64*-*-*)
+     targ_defvec=riscv_elf64_vec
+-    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec"
++    targ_selvecs="riscv_elf32_vec riscv_elf64_vec riscv_elf32_be_vec riscv_elf64_be_vec riscv64_pei_vec"
+     want64=true
+     ;;
+ #endif
+diff -Naru binutils-2.41.orig/bfd/configure binutils-2.41/bfd/configure
+--- binutils-2.41.orig/bfd/configure	2025-04-21 01:54:43.936202917 +0200
++++ binutils-2.41/bfd/configure	2025-04-21 01:55:55.732730346 +0200
+@@ -14043,6 +14043,7 @@
+     riscv_elf64_vec)		 tb="$tb elf64-riscv.lo elf64.lo elfxx-riscv.lo elf-ifunc.lo elf32.lo $elf"; target_size=64 ;;
+     riscv_elf32_be_vec)		 tb="$tb elf32-riscv.lo elfxx-riscv.lo elf-ifunc.lo elf32.lo $elf" ;;
+     riscv_elf64_be_vec)		 tb="$tb elf64-riscv.lo elf64.lo elfxx-riscv.lo elf-ifunc.lo elf32.lo $elf"; target_size=64 ;;
++    riscv64_pei_vec)		 tb="$tb pei-riscv64.lo pe-riscv64igen.lo $coff"; target_size=64 ;;
+     rl78_elf32_vec)		 tb="$tb elf32-rl78.lo elf32.lo $elf" ;;
+     rs6000_xcoff64_vec)		 tb="$tb coff64-rs6000.lo aix5ppc-core.lo $xcoff"; target_size=64 ;;
+     rs6000_xcoff64_aix_vec)	 tb="$tb coff64-rs6000.lo aix5ppc-core.lo $xcoff"; target_size=64 ;;
+diff -Naru binutils-2.41.orig/bfd/configure.ac binutils-2.41/bfd/configure.ac
+--- binutils-2.41.orig/bfd/configure.ac	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/configure.ac	2025-04-21 01:55:55.733730339 +0200
+@@ -586,6 +586,7 @@
+     riscv_elf64_vec)		 tb="$tb elf64-riscv.lo elf64.lo elfxx-riscv.lo elf-ifunc.lo elf32.lo $elf"; target_size=64 ;;
+     riscv_elf32_be_vec)		 tb="$tb elf32-riscv.lo elfxx-riscv.lo elf-ifunc.lo elf32.lo $elf" ;;
+     riscv_elf64_be_vec)		 tb="$tb elf64-riscv.lo elf64.lo elfxx-riscv.lo elf-ifunc.lo elf32.lo $elf"; target_size=64 ;;
++    riscv64_pei_vec)		 tb="$tb pei-riscv64.lo pe-riscv64igen.lo $coff"; target_size=64 ;;
+     rl78_elf32_vec)		 tb="$tb elf32-rl78.lo elf32.lo $elf" ;;
+     rs6000_xcoff64_vec)		 tb="$tb coff64-rs6000.lo aix5ppc-core.lo $xcoff"; target_size=64 ;;
+     rs6000_xcoff64_aix_vec)	 tb="$tb coff64-rs6000.lo aix5ppc-core.lo $xcoff"; target_size=64 ;;
+diff -Naru binutils-2.41.orig/bfd/.gitignore binutils-2.41/bfd/.gitignore
+--- binutils-2.41.orig/bfd/.gitignore	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/.gitignore	2025-04-21 01:55:55.729954719 +0200
+@@ -12,6 +12,7 @@
+ /pex64igen.c
+ /pe-aarch64igen.c
+ /pe-loongarch64igen.c
++/pe-riscv64igen.c
+ /stmp-bfd-h
+ /targmatch.h
+ 
+diff -Naru binutils-2.41.orig/bfd/libpei.h binutils-2.41/bfd/libpei.h
+--- binutils-2.41.orig/bfd/libpei.h	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/libpei.h	2025-04-21 01:55:55.733879574 +0200
+@@ -345,6 +345,41 @@
+ #define _bfd_XXi_write_codeview_record			_bfd_peLoongArch64i_write_codeview_record
+ #define _bfd_XXi_slurp_codeview_record			_bfd_peLoongArch64i_slurp_codeview_record
+ 
++#elif defined COFF_WITH_peRiscV64
++
++#define GET_OPTHDR_IMAGE_BASE		 H_GET_64
++#define PUT_OPTHDR_IMAGE_BASE		 H_PUT_64
++#define GET_OPTHDR_SIZE_OF_STACK_RESERVE H_GET_64
++#define PUT_OPTHDR_SIZE_OF_STACK_RESERVE H_PUT_64
++#define GET_OPTHDR_SIZE_OF_STACK_COMMIT	 H_GET_64
++#define PUT_OPTHDR_SIZE_OF_STACK_COMMIT	 H_PUT_64
++#define GET_OPTHDR_SIZE_OF_HEAP_RESERVE	 H_GET_64
++#define PUT_OPTHDR_SIZE_OF_HEAP_RESERVE	 H_PUT_64
++#define GET_OPTHDR_SIZE_OF_HEAP_COMMIT	 H_GET_64
++#define PUT_OPTHDR_SIZE_OF_HEAP_COMMIT	 H_PUT_64
++#define GET_PDATA_ENTRY			 bfd_get_32
++
++#define _bfd_XX_bfd_copy_private_bfd_data_common	_bfd_peRiscV64_bfd_copy_private_bfd_data_common
++#define _bfd_XX_bfd_copy_private_section_data		_bfd_peRiscV64_bfd_copy_private_section_data
++#define _bfd_XX_get_symbol_info				_bfd_peRiscV64_get_symbol_info
++#define _bfd_XX_only_swap_filehdr_out			_bfd_peRiscV64_only_swap_filehdr_out
++#define _bfd_XX_print_private_bfd_data_common		_bfd_peRiscV64_print_private_bfd_data_common
++#define _bfd_XXi_final_link_postscript			_bfd_peRiscV64i_final_link_postscript
++#define _bfd_XXi_only_swap_filehdr_out			_bfd_peRiscV64i_only_swap_filehdr_out
++#define _bfd_XXi_swap_aouthdr_in			_bfd_peRiscV64i_swap_aouthdr_in
++#define _bfd_XXi_swap_aouthdr_out			_bfd_peRiscV64i_swap_aouthdr_out
++#define _bfd_XXi_swap_aux_in				_bfd_peRiscV64i_swap_aux_in
++#define _bfd_XXi_swap_aux_out				_bfd_peRiscV64i_swap_aux_out
++#define _bfd_XXi_swap_lineno_in				_bfd_peRiscV64i_swap_lineno_in
++#define _bfd_XXi_swap_lineno_out			_bfd_peRiscV64i_swap_lineno_out
++#define _bfd_XXi_swap_scnhdr_out			_bfd_peRiscV64i_swap_scnhdr_out
++#define _bfd_XXi_swap_sym_in				_bfd_peRiscV64i_swap_sym_in
++#define _bfd_XXi_swap_sym_out				_bfd_peRiscV64i_swap_sym_out
++#define _bfd_XXi_swap_debugdir_in			_bfd_peRiscV64i_swap_debugdir_in
++#define _bfd_XXi_swap_debugdir_out			_bfd_peRiscV64i_swap_debugdir_out
++#define _bfd_XXi_write_codeview_record			_bfd_peRiscV64i_write_codeview_record
++#define _bfd_XXi_slurp_codeview_record			_bfd_peRiscV64i_slurp_codeview_record
++
+ #else /* !COFF_WITH_pep */
+ 
+ #define GET_OPTHDR_IMAGE_BASE H_GET_32
+@@ -443,5 +478,6 @@
+ bool _bfd_pex64_print_ce_compressed_pdata (bfd *, void *);
+ bool _bfd_peAArch64_print_ce_compressed_pdata (bfd *, void *);
+ bool _bfd_peLoongArch64_print_ce_compressed_pdata (bfd *, void *);
++bool _bfd_peRiscV64_print_ce_compressed_pdata (bfd *, void *);
+ bool _bfd_pep_print_ce_compressed_pdata (bfd *, void *);
+ 
+diff -Naru binutils-2.41.orig/bfd/Makefile.am binutils-2.41/bfd/Makefile.am
+--- binutils-2.41.orig/bfd/Makefile.am	2025-04-21 01:54:43.949047911 +0200
++++ binutils-2.41/bfd/Makefile.am	2025-04-21 01:56:49.500712647 +0200
+@@ -580,11 +580,13 @@
+ 	mmo.lo \
+ 	pe-aarch64igen.lo \
+ 	pe-loongarch64igen.lo \
++	pe-riscv64igen.lo \
+ 	pe-x86_64.lo \
+ 	pei-aarch64.lo \
+ 	pe-aarch64.lo \
+ 	pei-ia64.lo \
+ 	pei-loongarch64.lo \
++	pei-riscv64.lo \
+ 	pei-x86_64.lo \
+ 	pepigen.lo \
+ 	pex64igen.lo \
+@@ -629,6 +631,7 @@
+ 	pei-aarch64.c \
+ 	pei-ia64.c \
+ 	pei-loongarch64.c \
++	pei-riscv64.c \
+ 	pei-x86_64.c \
+ 	vms-alpha.c
+ 
+@@ -684,7 +687,8 @@
+ 	elf32-ia64.c elf64-ia64.c \
+ 	elf32-loongarch.c elf64-loongarch.c \
+ 	elf32-riscv.c elf64-riscv.c \
+-	peigen.c pepigen.c pex64igen.c pe-aarch64igen.c pe-loongarch64igen.c
++	peigen.c pepigen.c pex64igen.c pe-aarch64igen.c pe-loongarch64igen.c \
++	pe-riscv64igen.c
+ 
+ CFILES = $(SOURCE_CFILES) $(BUILD_CFILES)
+ 
+@@ -886,6 +890,10 @@
+ 	$(AM_V_at)echo "#line 1 \"peXXigen.c\"" > $@
+ 	$(AM_V_GEN)$(SED) -e s/XX/peLoongArch64/g < $< >> $@
+ 
++pe-riscv64igen.c: peXXigen.c
++	$(AM_V_at)echo "#line 1 \"peXXigen.c\"" > $@
++	$(AM_V_GEN)$(SED) -e s/XX/peRiscV64/g < $< >> $@
++
+ host-aout.lo: Makefile
+ 
+ # The following program can be used to generate a simple config file
+diff -Naru binutils-2.41.orig/bfd/Makefile.in binutils-2.41/bfd/Makefile.in
+--- binutils-2.41.orig/bfd/Makefile.in	2025-04-21 01:54:43.949572341 +0200
++++ binutils-2.41/bfd/Makefile.in	2025-04-21 01:57:06.894313714 +0200
+@@ -1037,11 +1037,13 @@
+ 	mmo.lo \
+ 	pe-aarch64igen.lo \
+ 	pe-loongarch64igen.lo \
++	pe-riscv64igen.lo \
+ 	pe-x86_64.lo \
+ 	pei-aarch64.lo \
+ 	pe-aarch64.lo \
+ 	pei-ia64.lo \
+ 	pei-loongarch64.lo \
++	pei-riscv64.lo \
+ 	pei-x86_64.lo \
+ 	pepigen.lo \
+ 	pex64igen.lo \
+@@ -1086,6 +1088,7 @@
+ 	pei-aarch64.c \
+ 	pei-ia64.c \
+ 	pei-loongarch64.c \
++	pei-riscv64.c \
+ 	pei-x86_64.c \
+ 	vms-alpha.c
+ 
+@@ -1140,7 +1143,8 @@
+ 	elf32-ia64.c elf64-ia64.c \
+ 	elf32-loongarch.c elf64-loongarch.c \
+ 	elf32-riscv.c elf64-riscv.c \
+-	peigen.c pepigen.c pex64igen.c pe-aarch64igen.c pe-loongarch64igen.c
++	peigen.c pepigen.c pex64igen.c pe-aarch64igen.c pe-loongarch64igen.c \
++	pe-riscv64igen.c
+ 
+ CFILES = $(SOURCE_CFILES) $(BUILD_CFILES)
+ SOURCE_HFILES = \
+@@ -1683,6 +1687,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pe-i386.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pe-loongarch64igen.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pe-mcore.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pe-riscv64igen.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pe-sh.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pe-x86_64.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pef.Plo@am__quote@
+@@ -1693,6 +1698,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pei-ia64.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pei-loongarch64.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pei-mcore.Plo@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pei-riscv64.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pei-sh.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pei-x86_64.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/peigen.Plo@am__quote@
+@@ -2384,6 +2390,10 @@
+ 	$(AM_V_at)echo "#line 1 \"peXXigen.c\"" > $@
+ 	$(AM_V_GEN)$(SED) -e s/XX/peLoongArch64/g < $< >> $@
+ 
++pe-riscv64igen.c: peXXigen.c
++	$(AM_V_at)echo "#line 1 \"peXXigen.c\"" > $@
++	$(AM_V_GEN)$(SED) -e s/XX/peRiscV64/g < $< >> $@
++
+ host-aout.lo: Makefile
+ 
+ # The following program can be used to generate a simple config file
+diff -Naru binutils-2.41.orig/bfd/peicode.h binutils-2.41/bfd/peicode.h
+--- binutils-2.41.orig/bfd/peicode.h	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/peicode.h	2025-04-21 01:55:55.734630487 +0200
+@@ -233,7 +233,7 @@
+     {
+       scnhdr_int->s_vaddr += pe_data (abfd)->pe_opthdr.ImageBase;
+       /* Do not cut upper 32-bits for 64-bit vma.  */
+-#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined(COFF_WITH_peRiscV64)
+       scnhdr_int->s_vaddr &= 0xffffffff;
+ #endif
+     }
+@@ -779,6 +779,16 @@
+ 
+ #endif
+ 
++#ifdef RISCV64MAGIC
++  /* We don't currently support jumping to DLLs, so if
++     someone does try emit a runtime trap.  Through EBREAK.  */
++  { RISCV64MAGIC,
++    { 0x73, 0x00, 0x10, 0x00 },
++    4, 0
++  },
++
++#endif
++
+   { 0, { 0 }, 0, 0 }
+ };
+ 
+@@ -936,7 +946,7 @@
+ 	/* See PR 20907 for a reproducer.  */
+ 	goto error_return;
+ 
+-#if defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64)
++#if defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64) || defined (COFF_WITH_peRiscV64)
+       ((unsigned int *) id4->contents)[0] = ordinal;
+       ((unsigned int *) id4->contents)[1] = 0x80000000;
+       ((unsigned int *) id5->contents)[0] = ordinal;
+@@ -1255,6 +1265,12 @@
+ #endif
+       break;
+ 
++    case IMAGE_FILE_MACHINE_RISCV64:
++#ifdef RISCV64MAGIC
++      magic = RISCV64MAGIC;
++#endif
++      break;
++
+     case IMAGE_FILE_MACHINE_THUMB:
+ #ifdef THUMBPEMAGIC
+       {
+diff -Naru binutils-2.41.orig/bfd/pei-riscv64.c binutils-2.41/bfd/pei-riscv64.c
+--- binutils-2.41.orig/bfd/pei-riscv64.c	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/bfd/pei-riscv64.c	2025-04-21 01:55:55.734494362 +0200
+@@ -0,0 +1,74 @@
++/* BFD back-end for RISC-V 64-bit PE IMAGE COFF files.
++   Copyright (C) 2023 Free Software Foundation, Inc.
++
++   This file is part of BFD, the Binary File Descriptor library.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
++   MA 02110-1301, USA.  */
++
++#include "sysdep.h"
++#include "bfd.h"
++
++#define TARGET_SYM		riscv64_pei_vec
++#define TARGET_NAME		"pei-riscv64-little"
++#define TARGET_ARCHITECTURE	bfd_arch_riscv
++#define TARGET_PAGESIZE		0x4000
++#define TARGET_BIG_ENDIAN	0
++#define TARGET_ARCHIVE		0
++#define TARGET_PRIORITY		0
++
++#define COFF_IMAGE_WITH_PE
++/* Rename the above into...  */
++#define COFF_WITH_peRiscV64
++#define COFF_WITH_PE
++#define PCRELOFFSET	   true
++
++/* Long section names not allowed in executable images, only object files.  */
++#define COFF_LONG_SECTION_NAMES 0
++
++#define COFF_SECTION_ALIGNMENT_ENTRIES \
++{ COFF_SECTION_NAME_EXACT_MATCH (".bss"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 2 }, \
++{ COFF_SECTION_NAME_EXACT_MATCH (".data"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 2 }, \
++{ COFF_SECTION_NAME_EXACT_MATCH (".rdata"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 2 }, \
++{ COFF_SECTION_NAME_EXACT_MATCH (".text"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 2 }, \
++{ COFF_SECTION_NAME_PARTIAL_MATCH (".idata"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 2 }, \
++{ COFF_SECTION_NAME_EXACT_MATCH (".pdata"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 2 }, \
++{ COFF_SECTION_NAME_PARTIAL_MATCH (".debug"), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 0 }, \
++{ COFF_SECTION_NAME_PARTIAL_MATCH (".gnu.linkonce.wi."), \
++  COFF_ALIGNMENT_FIELD_EMPTY, COFF_ALIGNMENT_FIELD_EMPTY, 0 }
++
++#include "sysdep.h"
++#include "bfd.h"
++#include "libbfd.h"
++#include "coff/riscv64.h"
++#include "coff/internal.h"
++#include "coff/pe.h"
++#include "libcoff.h"
++#include "libpei.h"
++#include "libiberty.h"
++
++/* Make sure we're setting a 64-bit format.  */
++#undef AOUTSZ
++#define AOUTSZ          PEPAOUTSZ
++#define PEAOUTHDR       PEPAOUTHDR
++
++#include "coff-riscv64.c"
+diff -Naru binutils-2.41.orig/bfd/peXXigen.c binutils-2.41/bfd/peXXigen.c
+--- binutils-2.41.orig/bfd/peXXigen.c	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/peXXigen.c	2025-04-21 01:55:55.734123579 +0200
+@@ -61,8 +61,8 @@
+    wasting too much time.  */
+ 
+ /* This expands into COFF_WITH_pe, COFF_WITH_pep, COFF_WITH_pex64,
+-   COFF_WITH_peAArch64 or COFF_WITH_peLoongArch64 depending on whether we're
+-   compiling for straight PE or PE+.  */
++   COFF_WITH_peAArch64 or COFF_WITH_peLoongArch64 or COFF_WITH_peRiscV64
++   depending on whether we're compiling for straight PE or PE+.  */
+ #define COFF_WITH_XX
+ 
+ #include "sysdep.h"
+@@ -88,6 +88,8 @@
+ # include "coff/aarch64.h"
+ #elif defined COFF_WITH_peLoongArch64
+ # include "coff/loongarch64.h"
++#elif defined COFF_WITH_peRiscV64
++# include "coff/riscv64.h"
+ #else
+ # include "coff/i386.h"
+ #endif
+@@ -97,7 +99,7 @@
+ #include "libpei.h"
+ #include "safe-ctype.h"
+ 
+-#if defined COFF_WITH_pep || defined COFF_WITH_pex64 || defined COFF_WITH_peAArch64 || defined COFF_WITH_peLoongArch64
++#if defined COFF_WITH_pep || defined COFF_WITH_pex64 || defined COFF_WITH_peAArch64 || defined COFF_WITH_peLoongArch64 || defined COFF_WITH_peRiscV64
+ # undef AOUTSZ
+ # define AOUTSZ		PEPAOUTSZ
+ # define PEAOUTHDR	PEPAOUTHDR
+@@ -464,7 +466,7 @@
+   aouthdr_int->text_start =
+     GET_AOUTHDR_TEXT_START (abfd, aouthdr_ext->text_start);
+ 
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+   /* PE32+ does not have data_start member!  */
+   aouthdr_int->data_start =
+     GET_AOUTHDR_DATA_START (abfd, aouthdr_ext->data_start);
+@@ -531,7 +533,7 @@
+   if (aouthdr_int->entry)
+     {
+       aouthdr_int->entry += a->ImageBase;
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+       aouthdr_int->entry &= 0xffffffff;
+ #endif
+     }
+@@ -539,12 +541,12 @@
+   if (aouthdr_int->tsize)
+     {
+       aouthdr_int->text_start += a->ImageBase;
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+       aouthdr_int->text_start &= 0xffffffff;
+ #endif
+     }
+ 
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+   /* PE32+ does not have data_start member!  */
+   if (aouthdr_int->dsize)
+     {
+@@ -604,7 +606,7 @@
+   if (aouthdr_in->tsize)
+     {
+       aouthdr_in->text_start -= ib;
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+       aouthdr_in->text_start &= 0xffffffff;
+ #endif
+     }
+@@ -612,7 +614,7 @@
+   if (aouthdr_in->dsize)
+     {
+       aouthdr_in->data_start -= ib;
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+       aouthdr_in->data_start &= 0xffffffff;
+ #endif
+     }
+@@ -620,7 +622,7 @@
+   if (aouthdr_in->entry)
+     {
+       aouthdr_in->entry -= ib;
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+       aouthdr_in->entry &= 0xffffffff;
+ #endif
+     }
+@@ -734,7 +736,7 @@
+   PUT_AOUTHDR_TEXT_START (abfd, aouthdr_in->text_start,
+ 			  aouthdr_out->standard.text_start);
+ 
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+   /* PE32+ does not have data_start member!  */
+   PUT_AOUTHDR_DATA_START (abfd, aouthdr_in->data_start,
+ 			  aouthdr_out->standard.data_start);
+@@ -920,7 +922,7 @@
+     _bfd_error_handler (_("%pB:%.8s: section below image base"),
+                         abfd, scnhdr_int->s_name);
+   /* Do not compare lower 32-bits for 64-bit vma.  */
+-#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+   else if(ss != (ss & 0xffffffff))
+     _bfd_error_handler (_("%pB:%.8s: RVA truncated"), abfd, scnhdr_int->s_name);
+   PUT_SCNHDR_VADDR (abfd, ss & 0xffffffff, scnhdr_ext->s_vaddr);
+@@ -1821,7 +1823,7 @@
+ static bool
+ pe_print_pdata (bfd * abfd, void * vfile)
+ {
+-#if defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+ # define PDATA_ROW_SIZE	(3 * 8)
+ #else
+ # define PDATA_ROW_SIZE	(5 * 4)
+@@ -1849,7 +1851,7 @@
+ 
+   fprintf (file,
+ 	   _("\nThe Function Table (interpreted .pdata section contents)\n"));
+-#if defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+   fprintf (file,
+ 	   _(" vma:\t\t\tBegin Address    End Address      Unwind Info\n"));
+ #else
+@@ -1886,7 +1888,7 @@
+       bfd_vma eh_handler;
+       bfd_vma eh_data;
+       bfd_vma prolog_end_addr;
+-#if !defined(COFF_WITH_pep) || defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) || defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64) || defined (COFF_WITH_peRiscV64)
+       int em_data;
+ #endif
+ 
+@@ -1904,7 +1906,7 @@
+ 	/* We are probably into the padding of the section now.  */
+ 	break;
+ 
+-#if !defined(COFF_WITH_pep) || defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) || defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64) || defined (COFF_WITH_peRiscV64)
+       em_data = ((eh_handler & 0x1) << 2) | (prolog_end_addr & 0x3);
+ #endif
+       eh_handler &= ~(bfd_vma) 0x3;
+@@ -1915,7 +1917,7 @@
+       bfd_fprintf_vma (abfd, file, begin_addr); fputc (' ', file);
+       bfd_fprintf_vma (abfd, file, end_addr); fputc (' ', file);
+       bfd_fprintf_vma (abfd, file, eh_handler);
+-#if !defined(COFF_WITH_pep) || defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) || defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64) || defined (COFF_WITH_peRiscV64)
+       fputc (' ', file);
+       bfd_fprintf_vma (abfd, file, eh_data); fputc (' ', file);
+       bfd_fprintf_vma (abfd, file, prolog_end_addr);
+@@ -2814,7 +2816,7 @@
+   bfd_fprintf_vma (abfd, file, i->AddressOfEntryPoint);
+   fprintf (file, "\nBaseOfCode\t\t");
+   bfd_fprintf_vma (abfd, file, i->BaseOfCode);
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+   /* PE32+ does not have BaseOfData member!  */
+   fprintf (file, "\nBaseOfData\t\t");
+   bfd_fprintf_vma (abfd, file, i->BaseOfData);
+@@ -3130,7 +3132,7 @@
+   coff_get_symbol_info (abfd, symbol, ret);
+ }
+ 
+-#if !defined(COFF_WITH_pep) && (defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64))
++#if !defined(COFF_WITH_pep) && (defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64) || defined (COFF_WITH_peRiscV64))
+ static int
+ sort_x64_pdata (const void *l, const void *r)
+ {
+@@ -4546,7 +4548,7 @@
+ 	the TLS data directory consists of 4 pointers, followed
+ 	by two 4-byte integer. This implies that the total size
+ 	is different for 32-bit and 64-bit executables.  */
+-#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64)
++#if !defined(COFF_WITH_pep) && !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64) && !defined(COFF_WITH_peLoongArch64) && !defined (COFF_WITH_peRiscV64)
+       pe_data (abfd)->pe_opthdr.DataDirectory[PE_TLS_TABLE].Size = 0x18;
+ #else
+       pe_data (abfd)->pe_opthdr.DataDirectory[PE_TLS_TABLE].Size = 0x28;
+@@ -4555,7 +4557,7 @@
+ 
+ /* If there is a .pdata section and we have linked pdata finally, we
+      need to sort the entries ascending.  */
+-#if !defined(COFF_WITH_pep) && (defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64))
++#if !defined(COFF_WITH_pep) && (defined(COFF_WITH_pex64) || defined(COFF_WITH_peAArch64) || defined(COFF_WITH_peLoongArch64) || defined (COFF_WITH_peRiscV64))
+   {
+     asection *sec = bfd_get_section_by_name (abfd, ".pdata");
+ 
+diff -Naru binutils-2.41.orig/bfd/targets.c binutils-2.41/bfd/targets.c
+--- binutils-2.41.orig/bfd/targets.c	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/bfd/targets.c	2025-04-21 01:55:55.734859324 +0200
+@@ -861,6 +861,7 @@
+ extern const bfd_target riscv_elf64_vec;
+ extern const bfd_target riscv_elf32_be_vec;
+ extern const bfd_target riscv_elf64_be_vec;
++extern const bfd_target riscv64_pei_vec;
+ extern const bfd_target rl78_elf32_vec;
+ extern const bfd_target rs6000_xcoff64_vec;
+ extern const bfd_target rs6000_xcoff64_aix_vec;
+@@ -1253,6 +1254,7 @@
+ 	&riscv_elf64_vec,
+ 	&riscv_elf32_be_vec,
+ 	&riscv_elf64_be_vec,
++	&riscv64_pei_vec,
+ #endif
+ 	&rl78_elf32_vec,
+ 
+diff -Naru binutils-2.41.orig/binutils/objcopy.c binutils-2.41/binutils/objcopy.c
+--- binutils-2.41.orig/binutils/objcopy.c	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/binutils/objcopy.c	2025-04-21 01:59:14.685221607 +0200
+@@ -5097,6 +5097,11 @@
+       /* Change aarch64 to aarch64-little.  */
+       memcpy (pei + 4 + sizeof ("aarch64") - 1, "-little", sizeof ("-little"));
+     }
++  else if (strcmp (efi + 4, "riscv64") == 0)
++    {
++      /* Change riscv64 to riscv64-little.  */
++      memcpy (pei + 4 + sizeof ("riscv64") - 1, "-little", sizeof ("-little"));
++    }
+   *targ = pei;
+   return subsys;
+ }
+diff -Naru binutils-2.41.orig/binutils/testsuite/binutils-all/riscv/pei-riscv64.d binutils-2.41/binutils/testsuite/binutils-all/riscv/pei-riscv64.d
+--- binutils-2.41.orig/binutils/testsuite/binutils-all/riscv/pei-riscv64.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/binutils/testsuite/binutils-all/riscv/pei-riscv64.d	2025-04-21 01:55:55.735042026 +0200
+@@ -0,0 +1,16 @@
++#as: -march=rv64gc -mabi=lp64d
++#ld: -m elf64lriscv -e0
++#PROG: objcopy
++#objcopy: -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .rel* -j .rela* -j .reloc --target=pei-riscv64-little
++#objdump: -h -f
++#name: Check if efi app format is recognized
++
++.*:     file format pei-riscv64-little
++architecture: riscv:rv64, flags 0x00000132:
++EXEC_P, HAS_SYMS, HAS_LOCALS, D_PAGED
++start address 0x0000000000000000
++
++Sections:
++Idx Name          Size      VMA               LMA               File off  Algn
++  0 \.text         00000010  0[^ ]+  0[^ ]+  0[^ ]+  2\*\*2
++                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+diff -Naru binutils-2.41.orig/binutils/testsuite/binutils-all/riscv/pei-riscv64.s binutils-2.41/binutils/testsuite/binutils-all/riscv/pei-riscv64.s
+--- binutils-2.41.orig/binutils/testsuite/binutils-all/riscv/pei-riscv64.s	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/binutils/testsuite/binutils-all/riscv/pei-riscv64.s	2025-04-21 01:55:55.735098812 +0200
+@@ -0,0 +1,31 @@
++	.file	"test_pei.c"
++	.option nopic
++	.attribute arch, "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zifencei2p0"
++	.attribute unaligned_access, 0
++	.attribute stack_align, 16
++	.text
++	.align	1
++	.globl	main
++	.type	main, @function
++main:
++.LFB0:
++	.cfi_startproc
++	addi	sp,sp,-16
++	.cfi_def_cfa_offset 16
++	sd	s0,8(sp)
++	.cfi_offset 8, -8
++	addi	s0,sp,16
++	.cfi_def_cfa 8, 0
++	li	a5,0
++	mv	a0,a5
++	ld	s0,8(sp)
++	.cfi_restore 8
++	.cfi_def_cfa 2, 16
++	addi	sp,sp,16
++	.cfi_def_cfa_offset 0
++	jr	ra
++	.cfi_endproc
++.LFE0:
++	.size	main, .-main
++	.ident	"GCC: (SUSE Linux) 13.1.1 20230720 [revision 9aac37ab8a7b919a89c6d64bc7107a8436996e93]"
++	.section	.note.GNU-stack,"",@progbits
+diff -Naru binutils-2.41.orig/include/coff/pe.h binutils-2.41/include/coff/pe.h
+--- binutils-2.41.orig/include/coff/pe.h	2023-07-03 01:00:00.000000000 +0200
++++ binutils-2.41/include/coff/pe.h	2025-04-21 01:55:55.735212054 +0200
+@@ -156,6 +156,8 @@
+ #define IMAGE_FILE_MACHINE_R10000            0x0168
+ #define IMAGE_FILE_MACHINE_R3000             0x0162
+ #define IMAGE_FILE_MACHINE_R4000             0x0166
++#define IMAGE_FILE_MACHINE_RISCV32           0x5032
++#define IMAGE_FILE_MACHINE_RISCV64           0x5064
+ #define IMAGE_FILE_MACHINE_SH3               0x01a2
+ #define IMAGE_FILE_MACHINE_SH3DSP            0x01a3
+ #define IMAGE_FILE_MACHINE_SH3E              0x01a4
+diff -Naru binutils-2.41.orig/include/coff/riscv64.h binutils-2.41/include/coff/riscv64.h
+--- binutils-2.41.orig/include/coff/riscv64.h	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/include/coff/riscv64.h	2025-04-21 01:55:55.735321678 +0200
+@@ -0,0 +1,64 @@
++/* RISC-V 64-bit COFF support for BFD.
++   Copyright (C) 2023 Free Software Foundation, Inc.
++
++   This file is part of BFD, the Binary File Descriptor library.
++
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software Foundation,
++   Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
++
++#ifndef COFF_RISCV64_H
++#define COFF_RISCV64_H
++
++#define COFFRISCV64 1
++
++#define L_LNNO_SIZE 2
++#define INCLUDE_COMDAT_FIELDS_IN_AUXENT
++#include "coff/external.h"
++
++#define	RISCV64MAGIC	0x5064  /* From Microsoft specification. */
++
++#undef  BADMAG
++#define BADMAG(x) ((x).f_magic != RISCV64MAGIC)
++#define RISCV64         1                 /* Customize coffcode.h.  */
++
++#define IMAGE_NT_OPTIONAL_HDR64_MAGIC      0x20b
++
++#define OMAGIC          0404    /* Object files, eg as output.  */
++#define ZMAGIC          IMAGE_NT_OPTIONAL_HDR64_MAGIC    /* Demand load format, eg normal ld output 0x10b.  */
++#define STMAGIC		0401	/* Target shlib.  */
++#define SHMAGIC		0443	/* Host   shlib.  */
++
++/* define some NT default values */
++/*  #define NT_IMAGE_BASE        0x400000 moved to internal.h */
++#define NT_SECTION_ALIGNMENT 0x1000
++#define NT_FILE_ALIGNMENT    0x200
++#define NT_DEF_RESERVE       0x100000
++#define NT_DEF_COMMIT        0x1000
++
++/* We use the .rdata section to hold read only data.  */
++#define _LIT	".rdata"
++
++/********************** RELOCATION DIRECTIVES **********************/
++struct external_reloc
++{
++  char r_vaddr[4];
++  char r_symndx[4];
++  char r_type[2];
++  char r_offset[4];
++};
++
++#define RELOC struct external_reloc
++#define RELSZ 14
++
++#endif /* COFF_RISCV64_H */

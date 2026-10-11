@@ -1,0 +1,263 @@
+From patchwork Tue Mar  3 12:16:07 2026
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+X-Patchwork-Submitter: Mark Wielaard <mark@klomp.org>
+X-Patchwork-Id: 131004
+Return-Path: <elfutils-devel-bounces~patchwork=sourceware.org@sourceware.org>
+X-Original-To: patchwork@sourceware.org
+Delivered-To: patchwork@sourceware.org
+Received: from vm01.sourceware.org (localhost [127.0.0.1])
+	by sourceware.org (Postfix) with ESMTP id 369014BA2E1B
+	for <patchwork@sourceware.org>; Tue,  3 Mar 2026 12:16:50 +0000 (GMT)
+DKIM-Filter: OpenDKIM Filter v2.11.0 sourceware.org 369014BA2E1B
+X-Original-To: elfutils-devel@sourceware.org
+Delivered-To: elfutils-devel@sourceware.org
+Received: from gnu.wildebeest.org (gnu.wildebeest.org [45.83.234.184])
+ by sourceware.org (Postfix) with ESMTPS id 809094BA2E1B
+ for <elfutils-devel@sourceware.org>; Tue,  3 Mar 2026 12:16:35 +0000 (GMT)
+DMARC-Filter: OpenDMARC Filter v1.4.2 sourceware.org 809094BA2E1B
+Authentication-Results: sourceware.org;
+ dmarc=none (p=none dis=none) header.from=klomp.org
+Authentication-Results: sourceware.org; spf=pass smtp.mailfrom=klomp.org
+ARC-Filter: OpenARC Filter v1.0.0 sourceware.org 809094BA2E1B
+Authentication-Results: server2.sourceware.org;
+ arc=none smtp.remote-ip=45.83.234.184
+ARC-Seal: i=1; a=rsa-sha256; d=sourceware.org; s=key; t=1772540195; cv=none;
+ b=LJ/IzDwxbRLuqzKPqQreoP4BmOCMDubRw8tN8tIttGvEfT+PvTQNJfR9jz3tNSLBRr0Bzzm11z6IfY47B3dDF7bNSfwCCL+X9D6FpgY9o/4PWBfbic6aRKwjP1NzB1CWVK3+RldaU1Tg/uwkhJjVdlFlSQMx3J0MdWiPRZ7QugI=
+ARC-Message-Signature: i=1; a=rsa-sha256; d=sourceware.org; s=key;
+ t=1772540195; c=relaxed/simple;
+ bh=Vr8QdX5vENUe1WatH2mBquvCd/VGC5H6fjMAeCETkWU=;
+ h=From:To:Subject:Date:Message-ID:MIME-Version;
+ b=Ulpd7RO550MP6x/VDwwJcwQ46BiqzGLUI7YPswxKxudHW3LasYvXxZfVdNaRiP6oLX4gbg0gXoPHrSFEkTig7ko9J3z2rzwQdk9NBaRYhIBhG8KhTbtdvsHPO+k8rWi26AX1T5yo47Nhpu8ubPf/q/a/1A73o5b/GzDKDT03vQA=
+ARC-Authentication-Results: i=1; server2.sourceware.org
+DKIM-Filter: OpenDKIM Filter v2.11.0 sourceware.org 809094BA2E1B
+Received: from 9950x.localdomain (82-217-174-174.cable.dynamic.v4.ziggo.nl
+ [82.217.174.174])
+ (using TLSv1.2 with cipher ADH-AES256-GCM-SHA384 (256/256 bits))
+ (No client certificate requested)
+ by gnu.wildebeest.org (Postfix) with ESMTPSA id 033ED3032F85;
+ Tue,  3 Mar 2026 13:16:33 +0100 (CET)
+Received: by 9950x.localdomain (Postfix, from userid 1000)
+ id 525BDAA0035; Tue, 03 Mar 2026 13:16:32 +0100 (CET)
+From: Mark Wielaard <mark@klomp.org>
+To: elfutils-devel@sourceware.org
+Cc: Mark Wielaard <mark@klomp.org>
+Subject: [PATCH] libdwfl: Work around ET_REL files with sh_addr fields set to
+ non-zero
+Date: Tue,  3 Mar 2026 13:16:07 +0100
+Message-ID: <20260303121607.639207-1-mark@klomp.org>
+X-Mailer: git-send-email 2.53.0
+MIME-Version: 1.0
+X-Spam-Status: No, score=-7.0 required=5.0 tests=BAYES_00, GIT_PATCH_0,
+ JMQ_SPF_NEUTRAL, KAM_DMARC_STATUS, RCVD_IN_BARRACUDACENTRAL,
+ RCVD_IN_DNSWL_BLOCKED, RCVD_IN_VALIDITY_RPBL_BLOCKED,
+ RCVD_IN_VALIDITY_SAFE_BLOCKED, SPF_HELO_NONE, SPF_PASS,
+ TXREP autolearn=ham autolearn_force=no version=3.4.6
+X-Spam-Checker-Version: SpamAssassin 3.4.6 (2021-04-09) on sourceware.org
+X-BeenThere: elfutils-devel@sourceware.org
+X-Mailman-Version: 2.1.30
+Precedence: list
+List-Id: Elfutils-devel mailing list <elfutils-devel.sourceware.org>
+List-Unsubscribe: <https://sourceware.org/mailman/options/elfutils-devel>,
+ <mailto:elfutils-devel-request@sourceware.org?subject=unsubscribe>
+List-Archive: <https://sourceware.org/pipermail/elfutils-devel/>
+List-Post: <mailto:elfutils-devel@sourceware.org>
+List-Help: <mailto:elfutils-devel-request@sourceware.org?subject=help>
+List-Subscribe: <https://sourceware.org/mailman/listinfo/elfutils-devel>,
+ <mailto:elfutils-devel-request@sourceware.org?subject=subscribe>
+Errors-To: elfutils-devel-bounces~patchwork=sourceware.org@sourceware.org
+
+libdwfl tries to model the loading of modules (executables, shared
+libraries, the linux kernel and/or kernel modules) in
+memory. Depending on the (offline) load address it then also applies
+(simple) relocations for ET_REL (object files or kernel modules). Load
+addresses are normally represented through phdr segments for ET_EXEC
+or ET_DYN, but for ET_REL files (which don't have phdrs) the Elf
+section sh_addr fields are used.
+
+The sh_addr fields of the ET_REL Elf images are updated in two places
+__libdwfl_elf_address_range (through __libdwfl_report_elf) and
+__libdwfl_relocate (through dwfl_module_getelf and
+dwfl_module_getdwarf). Both rely on sh_addr being zero if no load
+address has been set yet, so the address layout for each (SHF_ALLOC)
+section is done only once.
+
+Recent linux kernels use a linker script that does set the sh_addr
+fields to (random, linker assigned) non-zero addresses. See commit
+1ba9f8979426 ("vmlinux.lds: Unify TEXT_MAIN, DATA_MAIN, and related
+macros").
+
+The sh_addr values seems unnecessary, but because they aren't zero
+anymore our layout/relocation code doesn't know it still has to figure
+out a "real" load value for these sections.
+
+Introduce __libdwfl_reset_sh_addr which resets all sh_addr fields to
+zero for SHF_ALLOC sections in ET_REL files.
+
+We don't call __libdwfl_reset_sh_addr on aux_sym files (from
+.gnu_debugdata) and when constructing an Elf from a core file. In all
+other cases we know (or assume) that the Elf file is being opened
+through libdw_open_elf (called indirectly through __libdw_open_elf,
+__libdwfl_report_offline, dwfl_module_getelf and dwfl_module_getdwarf)
+
+This technically changes the Elf that goes through libdwfl, but we
+would already update the sh_addr fields for ET_REL Elf sections in
+memory anyway to represent the load address as libdwfl would see
+them. So this isn't really a change in behavior (it just might update
+the sh_addr field twice).
+
+	* libdwfl/libdwflP.h (__libdwfl_reset_sh_addr): Define new
+        internal function.
+	* libdwfl/relocate.c (__libdwfl_reset_sh_addr): New internal
+        function.
+	* libdwfl/open.c (libdw_open_elf): Call __libdwfl_reset_sh_addr.
+	* libdwfl/dwfl_module_getdwarf.c (open_elf_file): Add comment.
+	(find_aux_sym): Likewise.
+	(find_dw): Likewise.
+	* libdwfl/dwfl_segment_report_module.c
+	(dwfl_segment_report_module): Likewise.
+	* libdwfl/dwfl_report_elf.c (__libdwfl_report_elf): Likewise.
+
+Signed-off-by: Mark Wielaard <mark@klomp.org>
+---
+ libdwfl/dwfl_module_getdwarf.c       |  3 +++
+ libdwfl/dwfl_report_elf.c            |  3 +++
+ libdwfl/dwfl_segment_report_module.c |  2 ++
+ libdwfl/libdwflP.h                   |  4 ++++
+ libdwfl/open.c                       |  2 ++
+ libdwfl/relocate.c                   | 32 ++++++++++++++++++++++++++++
+ 6 files changed, 46 insertions(+)
+
+diff --git a/libdwfl/dwfl_module_getdwarf.c b/libdwfl/dwfl_module_getdwarf.c
+index 135132d69178..430c32367d01 100644
+--- a/libdwfl/dwfl_module_getdwarf.c
++++ b/libdwfl/dwfl_module_getdwarf.c
+@@ -57,6 +57,7 @@ open_elf_file (Elf **elf, int *fd, char **name)
+       if (*fd < 0)
+ 	return CBFAIL;
+ 
++      /* This will call __libdwfl_reset_sh_addr.  */
+       return __libdw_open_file (fd, elf, true, false);
+     }
+   else if (unlikely (elf_kind (*elf) != ELF_K_ELF))
+@@ -1004,6 +1005,7 @@ find_aux_sym (Dwfl_Module *mod __attribute__ ((unused)),
+ 	free (buffer);
+       else
+ 	{
++	  /* We don't call __libdwfl_reset_sh_addr here, should we?  */
+ 	  mod->aux_sym.elf = elf_memory (buffer, size);
+ 	  if (mod->aux_sym.elf == NULL)
+ 	    free (buffer);
+@@ -1423,6 +1425,7 @@ find_dw (Dwfl_Module *mod)
+   switch (mod->dwerr)
+     {
+     case DWFL_E_NOERROR:
++      /* main.elf already should have had __libdwfl_reset_sh_addr called.  */
+       mod->debug.elf = mod->main.elf;
+       mod->debug.address_sync = mod->main.address_sync;
+ 
+diff --git a/libdwfl/dwfl_report_elf.c b/libdwfl/dwfl_report_elf.c
+index a76d36816c6f..7173375127a8 100644
+--- a/libdwfl/dwfl_report_elf.c
++++ b/libdwfl/dwfl_report_elf.c
+@@ -268,6 +268,9 @@ __libdwfl_report_elf (Dwfl *dwfl, const char *name, const char *file_name,
+       /* Preinstall the open ELF handle for the module.  */
+       if (m->main.elf == NULL)
+ 	{
++	  /* We assume all calls to __libdwfl_report_elf got their Elf
++	     through __libdw_open_file which already called
++	     __libdwfl_reset_sh_addr.  */
+ 	  m->main.elf = elf;
+ 	  m->main.vaddr = vaddr;
+ 	  m->main.address_sync = address_sync;
+diff --git a/libdwfl/dwfl_segment_report_module.c b/libdwfl/dwfl_segment_report_module.c
+index f2f866c2c70f..5ad318c78b09 100644
+--- a/libdwfl/dwfl_segment_report_module.c
++++ b/libdwfl/dwfl_segment_report_module.c
+@@ -1072,6 +1072,8 @@ dwfl_segment_report_module (Dwfl *dwfl, int ndx, const char *name,
+ 	elf->flags |= ELF_F_MALLOCED;
+     }
+ 
++  /* Elf comes through a core file, so cannot be an ET_REL. Don't call
++     __libdwfl_reset_sh_addr.  */
+   if (elf != NULL && mod->main.elf == NULL)
+     {
+       /* Install the file in the module.  */
+diff --git a/libdwfl/libdwflP.h b/libdwfl/libdwflP.h
+index 6e394c262010..7a181029c529 100644
+--- a/libdwfl/libdwflP.h
++++ b/libdwfl/libdwflP.h
+@@ -482,6 +482,10 @@ extern void __libdwfl_module_free (Dwfl_Module *mod) internal_function;
+ /* Find the main ELF file, update MOD->elferr and/or MOD->main.elf.  */
+ extern void __libdwfl_getelf (Dwfl_Module *mod) internal_function;
+ 
++/* Reset all sh_addr fields to zero for SHF_ALLOC sections if the Elf
++   handle is an ET_REL. Called from libdw_open_elf.  */
++extern void __libdwfl_reset_sh_addr (Elf *elf) internal_function;
++
+ /* Process relocations in debugging sections in an ET_REL file.
+    FILE must be opened with ELF_C_READ_MMAP_PRIVATE or ELF_C_READ,
+    to make it possible to relocate the data in place (or ELF_C_RDWR or
+diff --git a/libdwfl/open.c b/libdwfl/open.c
+index e66595fba097..86a3540f2af3 100644
+--- a/libdwfl/open.c
++++ b/libdwfl/open.c
+@@ -190,6 +190,8 @@ libdw_open_elf (int *fdp, Elf **elfp, bool close_on_fail, bool archive_ok,
+       *fdp = -1;
+     }
+ 
++  __libdwfl_reset_sh_addr (elf);
++
+   *elfp = elf;
+   return error;
+ }
+diff --git a/libdwfl/relocate.c b/libdwfl/relocate.c
+index 0497bd4fe1f3..dc9f45e64f3f 100644
+--- a/libdwfl/relocate.c
++++ b/libdwfl/relocate.c
+@@ -1,5 +1,6 @@
+ /* Relocate debug information.
+    Copyright (C) 2005-2011, 2014, 2016, 2018 Red Hat, Inc.
++   Copyright (C) 2026 Mark J. Wielaard <mark@klomp.org>
+    This file is part of elfutils.
+ 
+    This file is free software; you can redistribute it and/or modify
+@@ -37,6 +38,37 @@
+ 
+ typedef uint8_t GElf_Byte;
+ 
++/* Reset all sh_addr fields to zero for SHF_ALLOC sections if the Elf
++   handle is an ET_REL. Called from libdw_open_elf.  */
++
++void
++internal_function
++__libdwfl_reset_sh_addr (Elf *elf)
++{
++  if (elf == NULL || elf->kind != ELF_K_ELF)
++    return;
++
++  GElf_Ehdr ehdr_mem;
++  GElf_Ehdr *ehdr = gelf_getehdr (elf, &ehdr_mem);
++  if (ehdr == NULL || ehdr->e_type != ET_REL)
++    return;
++
++  Elf_Scn *scn = NULL;
++  while ((scn = elf_nextscn (elf, scn)) != NULL)
++    {
++      GElf_Shdr shdr_mem;
++      GElf_Shdr *shdr = gelf_getshdr (scn, &shdr_mem);
++      if (shdr != NULL)
++	{
++	  if ((shdr->sh_flags & SHF_ALLOC) != 0 && shdr->sh_addr != 0)
++	    {
++	      shdr_mem.sh_addr = 0;
++	      gelf_update_shdr (scn, &shdr_mem);
++	    }
++	}
++    }
++}
++
+ /* Adjust *VALUE to add the load address of the SHNDX section.
+    We update the section header in place to cache the result.  */
+ 

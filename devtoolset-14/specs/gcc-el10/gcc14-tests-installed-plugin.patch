@@ -1,0 +1,229 @@
+commit edf5b880b876938f9c66aa5859ea089911cde0ba
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Mon Dec 15 17:58:20 2025 +0000
+
+    testsuite: Support plugin testing for installed compiler
+    
+    Plugin tests are currently only enabled for build-tree testing.
+    Enable them for installed testing as well, using
+    -print-file-name=plugin/include to locate the installed headers in
+    that case.
+    
+    Support is also added to contrib/test_installed for the associated
+    site.exp settings.  Installed testing also shows up that some plugin
+    tests are using text-art/*.h headers that aren't currently installed,
+    so add those to PLUGIN_HEADERS.
+    
+    Bootstrapped with no regressions for x86_64-pc-linux-gnu, and also ran
+    plugin tests for an installed compiler with contrib/test_installed.
+    
+    contrib/
+            * test_installed (--enable-plugin, --with-plugincc=)
+            (--with-plugincflags=, --with-gmpinc=): New options.
+    
+    gcc/
+            * Makefile.in (PLUGIN_HEADERS): Add $(srcdir)/text-art/*.h.
+            (install-plugin): Preserve directory structure for text-art
+            headers.
+    
+    gcc/testsuite/
+            * lib/plugin-support.exp (plugin-test-execute): Support installed
+            testing.
+            * g++.dg/plugin/plugin.exp, gcc.dg/plugin/plugin.exp,
+            obj-c++.dg/plugin/plugin.exp, objc.dg/plugin/plugin.exp: Do not
+            disable for installed testing.
+
+(Note: merge conflicts in gcc/Makefile.in in backporting to GCC 14.)
+
+diff --git a/contrib/test_installed b/contrib/test_installed
+index 530d21ed74ec..9567ace54b3d 100755
+--- a/contrib/test_installed
++++ b/contrib/test_installed
+@@ -49,6 +49,7 @@ while true; do
+   --srcdir=*) srcdir=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --target=*) target=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --prefix=*) prefix=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --enable-plugin) ENABLE_PLUGIN=1; shift;;
+   --with-gcc=*) GCC_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --with-g++=*) GXX_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --with-gfortran=*) GFORTRAN_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+@@ -56,6 +57,9 @@ while true; do
+   --with-alt-cxx=*) ALT_CXX_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --with-compat-options=*) COMPAT_OPTIONS=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --with-libiconv=*) libiconv=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-plugincc=*) PLUGINCC=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-plugincflags=*) PLUGINCFLAGS=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-gmpinc=*) GMPINC=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --without-gcc) GCC_UNDER_TEST=no; shift;;
+   --without-g++) GXX_UNDER_TEST=no; shift;;
+   --without-gfortran) GFORTRAN_UNDER_TEST=no; shift;;
+@@ -80,6 +84,7 @@ Supported arguments:
+                               tested if different than the host.
+ 
+ --prefix=/some/dir            use gcc, g++ and gfortran from /some/dir/bin [PATH]
++--enable-plugin               run GCC plugin tests
+ --with-gcc=/some/dir/bin/gcc  use specified gcc program [gcc]
+ --with-g++=/some/dir/bin/g++  use specified g++ program [g++]
+ --with-gfortran=/some/dir/bin/gfortran  use specified gfortran program [gfortran]
+@@ -87,6 +92,9 @@ Supported arguments:
+ --with-alt-cxx=/some/compiler use specified alternative compiler in compat tests
+ --with-compat-options=opts    use specified COMPAT_OPTIONS in compat tests
+ --with-libiconv=linker-args   use given arguments to link with iconv [-liconv]
++--with-plugincc=/some/c++     use given host compiler to build plugins [g++]
++--with-plugincflags=args      use given options to build plugins [-g -O2]
++--with-gmpinc=args            use given options to find GMP for host []
+ --without-gcc                 do not run gcc testsuite
+ --without-g++                 do not run g++ testsuite
+ --without-gfortran            do not run gfortran testsuite
+@@ -146,6 +154,12 @@ fi
+ if test x"$COMPAT_OPTIONS" != x; then
+   echo "set COMPAT_OPTIONS \"${COMPAT_OPTIONS}\"" >> site.exp
+ fi
++if test x"$ENABLE_PLUGIN" != x; then
++    echo "set ENABLE_PLUGIN \"${ENABLE_PLUGIN}\"" >> site.exp
++    echo "set PLUGINCC \"${PLUGINCC-g++}\"" >> site.exp
++    echo "set PLUGINCFLAGS \"${PLUGINCFLAGS--g -O2}\"" >> site.exp
++    echo "set GMPINC \"${GMPINC}\"" >> site.exp
++fi
+ 
+ test x"${GCC_UNDER_TEST}" = x"no" || runtest --tool gcc ${1+"$@"}
+ test x"${GXX_UNDER_TEST}" = x"no" || runtest --tool g++ ${1+"$@"}
+diff --git a/gcc/Makefile.in b/gcc/Makefile.in
+index d475bf1c32ec..2022544cf830 100644
+--- a/gcc/Makefile.in
++++ b/gcc/Makefile.in
+@@ -3858,7 +3858,7 @@ PLUGIN_HEADERS = $(TREE_H) $(CONFIG_H) $(SYSTEM_H) coretypes.h $(TM_H) \
+   hash-set.h dominance.h cfg.h cfgrtl.h cfganal.h cfgbuild.h cfgcleanup.h \
+   lcm.h cfgloopmanip.h file-prefix-map.h builtins.def $(INSN_ATTR_H) \
+   pass-instances.def params.list $(srcdir)/../include/gomp-constants.h \
+-  $(EXPR_H) $(srcdir)/analyzer/*.h
++  $(EXPR_H) $(srcdir)/analyzer/*.h $(srcdir)/text-art/*.h
+ 
+ # generate the 'build fragment' b-header-vars
+ s-header-vars: Makefile
+@@ -3896,6 +3896,7 @@ install-plugin: installdirs lang.install-plugin s-header-vars install-gengtype
+ 	  fi; \
+ 	  case $$path in \
+ 	  "$(srcdir)"/analyzer/* \
++	  | "$(srcdir)"/text-art/* \
+ 	  | "$(srcdir)"/config/* | "$(srcdir)"/common/config/* \
+ 	  | "$(srcdir)"/c-family/* | "$(srcdir)"/*.def ) \
+ 	    base=`echo "$$path" | sed -e "s|$$srcdirstrip/||"`;; \
+diff --git a/gcc/testsuite/g++.dg/plugin/plugin.exp b/gcc/testsuite/g++.dg/plugin/plugin.exp
+index 9410fea6d7d9..2615f31158cb 100644
+--- a/gcc/testsuite/g++.dg/plugin/plugin.exp
++++ b/gcc/testsuite/g++.dg/plugin/plugin.exp
+@@ -19,12 +19,10 @@
+ load_lib target-supports.exp
+ load_lib g++-dg.exp
+ 
+-global TESTING_IN_BUILD_TREE
+ global ENABLE_PLUGIN
+ 
+-# The plugin testcases currently only work when the build tree is available.
+-# Also check whether the host supports plugins.
+-if { ![info exists TESTING_IN_BUILD_TREE] || ![info exists ENABLE_PLUGIN] } {
++# Check whether the host supports plugins.
++if { ![info exists ENABLE_PLUGIN] } {
+     return
+ }
+ 
+diff --git a/gcc/testsuite/gcc.dg/plugin/plugin.exp b/gcc/testsuite/gcc.dg/plugin/plugin.exp
+index 83ef1b2dd939..9894b4a46157 100644
+--- a/gcc/testsuite/gcc.dg/plugin/plugin.exp
++++ b/gcc/testsuite/gcc.dg/plugin/plugin.exp
+@@ -19,12 +19,10 @@
+ load_lib target-supports.exp
+ load_lib gcc-dg.exp
+ 
+-global TESTING_IN_BUILD_TREE
+ global ENABLE_PLUGIN
+ 
+-# The plugin testcases currently only work when the build tree is available.
+-# Also check whether the host supports plugins.
+-if { ![info exists TESTING_IN_BUILD_TREE] || ![info exists ENABLE_PLUGIN] } {
++# Check whether the host supports plugins.
++if { ![info exists ENABLE_PLUGIN] } {
+     return
+ }
+ 
+diff --git a/gcc/testsuite/lib/plugin-support.exp b/gcc/testsuite/lib/plugin-support.exp
+index 9188adbdf2f7..b2e76a799314 100644
+--- a/gcc/testsuite/lib/plugin-support.exp
++++ b/gcc/testsuite/lib/plugin-support.exp
+@@ -62,9 +62,11 @@ proc plugin-get-options { src } {
+ proc plugin-test-execute { plugin_src plugin_tests } {
+     global srcdir objdir
+     global verbose
++    global tool
+     global GMPINC
+     global PLUGINCC
+     global PLUGINCFLAGS
++    global TESTING_IN_BUILD_TREE
+ 
+     set basename [file tail $plugin_src]
+     set base [file rootname $basename]
+@@ -76,16 +78,17 @@ proc plugin-test-execute { plugin_src plugin_tests } {
+     # Build the plugin itself
+     set extra_flags [plugin-get-options $plugin_src]
+ 
+-    # Note that the plugin test support currently only works when the GCC
+-    # build tree is available. (We make sure that is the case in plugin.exp.)
+-    # Once we have figured out how/where to package/install GCC header files
+-    # for general plugin support, we should modify the following include paths
+-    # accordingly.
+-    set gcc_srcdir "$srcdir/../.."
+-    set gcc_objdir "$objdir/../../.."
+-    set includes "-I. -I${srcdir} -I${gcc_srcdir}/gcc -I${gcc_objdir}/gcc \
++    if { [info exists TESTING_IN_BUILD_TREE] } {
++	set gcc_srcdir "$srcdir/../.."
++	set gcc_objdir "$objdir/../../.."
++	set includes "-I. -I${srcdir} -I${gcc_srcdir}/gcc -I${gcc_objdir}/gcc \
+                   -I${gcc_srcdir}/include -I${gcc_srcdir}/libcpp/include \
+                   $GMPINC -I${gcc_objdir}/gettext/intl"
++    } else {
++	set options [list "additional_flags=-print-file-name=plugin/include"]
++	set plugin_inc [lindex [${tool}_target_compile "" "" "none" $options] 0]
++	set includes "-I. -I${srcdir} -I${plugin_inc} $GMPINC"
++    }
+ 
+     if { [ ishost *-*-darwin* ] } {
+ 	# -mdynamic-no-pic is incompatible with -fPIC.
+diff --git a/gcc/testsuite/obj-c++.dg/plugin/plugin.exp b/gcc/testsuite/obj-c++.dg/plugin/plugin.exp
+index ad2ca18bf20b..1de7df886c02 100644
+--- a/gcc/testsuite/obj-c++.dg/plugin/plugin.exp
++++ b/gcc/testsuite/obj-c++.dg/plugin/plugin.exp
+@@ -19,12 +19,10 @@
+ load_lib target-supports.exp
+ load_lib obj-c++-dg.exp
+ 
+-global TESTING_IN_BUILD_TREE
+ global ENABLE_PLUGIN
+ 
+-# The plugin testcases currently only work when the build tree is available.
+-# Also check whether the host supports plugins.
+-if { ![info exists TESTING_IN_BUILD_TREE] || ![info exists ENABLE_PLUGIN] } {
++# Check whether the host supports plugins.
++if { ![info exists ENABLE_PLUGIN] } {
+     return
+ }
+ 
+diff --git a/gcc/testsuite/objc.dg/plugin/plugin.exp b/gcc/testsuite/objc.dg/plugin/plugin.exp
+index d03ec729aa7e..a508a433fcf2 100644
+--- a/gcc/testsuite/objc.dg/plugin/plugin.exp
++++ b/gcc/testsuite/objc.dg/plugin/plugin.exp
+@@ -19,12 +19,10 @@
+ load_lib target-supports.exp
+ load_lib objc-dg.exp
+ 
+-global TESTING_IN_BUILD_TREE
+ global ENABLE_PLUGIN
+ 
+-# The plugin testcases currently only work when the build tree is available.
+-# Also check whether the host supports plugins.
+-if { ![info exists TESTING_IN_BUILD_TREE] || ![info exists ENABLE_PLUGIN] } {
++# Check whether the host supports plugins.
++if { ![info exists ENABLE_PLUGIN] } {
+     return
+ }
+ 

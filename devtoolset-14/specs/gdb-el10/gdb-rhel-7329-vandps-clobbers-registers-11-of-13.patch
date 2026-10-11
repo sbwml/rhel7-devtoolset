@@ -1,0 +1,86 @@
+From FEDORA_PATCHES Mon Sep 17 00:00:00 2001
+From: Tom de Vries <tdevries@suse.de>
+Date: Fri, 7 Mar 2025 09:25:33 +0100
+Subject: gdb-rhel-7329-vandps-clobbers-registers-11-of-13.patch
+
+;; [gdb/tdep] Make amd64_get_insn_details more regular
+;; (Tom de Vries, RHEL-7329)
+
+In amd64_get_insn_details, I found this code with a comment explaining why
+enc_prefix_offset is not set:
+...
+  else if (vex2_prefix_p (*insn))
+    {
+      /* Don't record the offset in this case because this prefix has
+	 no REX.B equivalent.  */
+       insn += 2;
+     }
+...
+which I didn't understand until I looked at the only use of enc_prefix_offset,
+in fixup_riprel:
+...
+  /* REX.B should be unset (VEX.!B set) as we were using rip-relative
+     addressing, but ensure it's unset (set for VEX) anyway, tmp_regno
+     is not r8-r15.  */
+  if (insn_details->enc_prefix_offset != -1)
+    {
+      gdb_byte *pfx = &dsc->insn_buf[insn_details->enc_prefix_offset];
+      if (rex_prefix_p (pfx[0]))
+	pfx[0] &= ~REX_B;
+      else if (vex3_prefix_p (pfx[0]))
+	pfx[1] |= VEX3_NOT_B;
+      else
+	gdb_assert_not_reached ("unhandled prefix");
+    }
+...
+
+Fix this by:
+- setting enc_prefix_offset for the vex2 case in amd64_get_insn_details,
+  making the function more regular and easier to understand, and
+- handling the vex2 case in the "enc_prefix_offset != -1" clause in
+  fixup_riprel.
+
+Tested on x86_64-linux.
+
+diff --git a/gdb/amd64-tdep.c b/gdb/amd64-tdep.c
+--- a/gdb/amd64-tdep.c
++++ b/gdb/amd64-tdep.c
+@@ -1328,8 +1328,7 @@ amd64_get_insn_details (gdb_byte *insn, struct amd64_insn *details)
+     }
+   else if (vex2_prefix_p (*insn))
+     {
+-      /* Don't record the offset in this case because this prefix has
+-	 no REX.B equivalent.  */
++      details->enc_prefix_offset = insn - start;
+       insn += 2;
+     }
+   else if (vex3_prefix_p (*insn))
+@@ -1395,6 +1394,10 @@ fixup_riprel (const struct amd64_insn &details, gdb_byte *insn,
+       gdb_byte *pfx = &insn[details.enc_prefix_offset];
+       if (rex_prefix_p (pfx[0]))
+ 	pfx[0] &= ~REX_B;
++      else if (vex2_prefix_p (pfx[0]))
++	{
++	  /* VEX.!B is set implicitly.  */
++	}
+       else if (vex3_prefix_p (pfx[0]))
+ 	pfx[1] |= VEX3_NOT_B;
+       else
+@@ -3519,7 +3522,7 @@ test_amd64_get_insn_details (void)
+   vex2 = { 0xc5, 0xfc, 0x77 };
+   amd64_get_insn_details (vex2.data (), &details);
+   SELF_CHECK (details.opcode_len == 1);
+-  SELF_CHECK (details.enc_prefix_offset == -1);
++  SELF_CHECK (details.enc_prefix_offset == 0);
+   SELF_CHECK (details.opcode_offset == 2);
+   SELF_CHECK (details.modrm_offset == -1);
+ 
+@@ -3535,7 +3538,7 @@ test_amd64_get_insn_details (void)
+   vex2 = { 0xc5, 0xf8, 0x77 };
+   amd64_get_insn_details (vex2.data (), &details);
+   SELF_CHECK (details.opcode_len == 1);
+-  SELF_CHECK (details.enc_prefix_offset == -1);
++  SELF_CHECK (details.enc_prefix_offset == 0);
+   SELF_CHECK (details.opcode_offset == 2);
+   SELF_CHECK (details.modrm_offset == -1);
+ 

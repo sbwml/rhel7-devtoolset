@@ -1,0 +1,115 @@
+commit 3119cfc9118eb8545dac9bf765c93f762ad8794a
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Wed Jan 14 17:10:33 2026 +0000
+
+    testsuite: Enable cross testing for simulate-thread tests
+    
+    The simulate-thread tests exit early in cross and remote cases.  Apply
+    fixes similar to (but affecting separate code) those recently posted
+    for the guality tests: do not use [transform gdb] since that's a cross
+    GDB and the tests expect to run GDB on the target, test existence on
+    the target not the build system, and copy required files to the target
+    (deleting them later).
+    
+    Tested for x86_64-pc-linux-gnu to make sure native testing isn't
+    broken, and with cross to aarch64-linux.
+    
+            * lib/gcc-dg.exp (gdb-exists): Do not use [transform gdb].  Run
+            selected GDB with -v on target rather than testing for existence
+            on build system.
+            * lib/gcc-simulate-thread.exp (simulate-thread): Do not return
+            early for non-native and remote.  Download executable and GDB
+            command file to target before running GDB there, and delete when
+            closing target.
+
+diff --git a/gcc/testsuite/lib/gcc-dg.exp b/gcc/testsuite/lib/gcc-dg.exp
+index 87dddb8cd8ac..f2e5228fff58 100644
+--- a/gcc/testsuite/lib/gcc-dg.exp
++++ b/gcc/testsuite/lib/gcc-dg.exp
+@@ -1374,11 +1374,12 @@ proc gdb-exists { args } {
+ 	    if [info exists GDB] {
+ 		setenv GDB_FOR_GCC_TESTING "$GDB"
+ 	    } else {
+-		setenv GDB_FOR_GCC_TESTING "[transform gdb]"
++		setenv GDB_FOR_GCC_TESTING "gdb"
+ 	    }
+ 	}
+     }
+-    if { [which $::env(GDB_FOR_GCC_TESTING)] != 0 } {
++    if { [lindex [remote_exec target "$::env(GDB_FOR_GCC_TESTING)" "-v"] 0]
++	 == 0 } {
+ 	return 1;
+     }
+     return 0;
+diff --git a/gcc/testsuite/lib/gcc-simulate-thread.exp b/gcc/testsuite/lib/gcc-simulate-thread.exp
+index 115b636e603d..dcbcd3dc08ef 100644
+--- a/gcc/testsuite/lib/gcc-simulate-thread.exp
++++ b/gcc/testsuite/lib/gcc-simulate-thread.exp
+@@ -24,8 +24,6 @@ load_lib timeout.exp
+ # Call 'fail' if a given test printed "FAIL:", otherwise call 'pass'.
+ 
+ proc simulate-thread { args } {
+-    if { ![isnative] || [is_remote target] } { return }
+-
+     if { [llength $args] == 1 } {
+ 	switch [dg-process-target [lindex $args 0]] {
+ 		"F" { setup_xfail "*-*-*" }
+@@ -49,10 +47,16 @@ proc simulate-thread { args } {
+ 
+     set message "thread simulation test"
+ 
+-    send_log "Spawning: $gdb_name -nx -nw -batch -x $cmd_file ./$exec_file\n"
+-    set res [remote_spawn target "$gdb_name -nx -nw -batch -x $cmd_file ./$exec_file"]
++    set cmd_file_remote [remote_download target $cmd_file]
++    set exec_file_remote [remote_download target $exec_file]
++    send_log "Spawning: $gdb_name -nx -nw -batch -x $cmd_file_remote $exec_file_remote\n"
++    set res [remote_spawn target "$gdb_name -nx -nw -batch -x $cmd_file_remote $exec_file_remote"]
+     if { $res < 0 || $res == "" } {
+ 	unsupported "$testcase $message"
++	if { [is_remote target] } {
++	    remote_file target delete $cmd_file_remote
++	    remote_file target delete $exec_file_remote
++	}
+ 	return
+     }
+ 
+@@ -62,11 +66,19 @@ proc simulate-thread { args } {
+ 	# Too old GDB
+ 	-re "Unhandled dwarf expression|Error in sourced command file" {
+ 	    unsupported "$testcase $message"
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $exec_file_remote
++	    }
+ 	    remote_close target
+ 	    return
+ 	}
+ 	-re "FAIL:" {
+ 	    fail "$testcase $message"
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $exec_file_remote
++	    }
+ 	    remote_close target
+ 	    return
+ 	}
+@@ -79,11 +91,19 @@ proc simulate-thread { args } {
+ 	}
+ 	timeout {
+ 	    fail "$testcase $message"
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $exec_file_remote
++	    }
+ 	    remote_close target
+ 	    return
+ 	}
+     }
+ 
++    if { [is_remote target] } {
++	remote_file target delete $cmd_file_remote
++	remote_file target delete $exec_file_remote
++    }
+     remote_close target
+     if {$gdb_worked} {
+ 	pass "$testcase $message"

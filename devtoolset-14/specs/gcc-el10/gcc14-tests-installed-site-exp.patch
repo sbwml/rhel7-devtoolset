@@ -1,0 +1,92 @@
+commit a7b8c5faa6ff3d9bcc15457113e611ec377c6f5f
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Mon Dec 8 17:02:22 2025 +0000
+
+    contrib: Set more site.exp variables in test_installed
+    
+    Add support in contrib/test_installed for more variables (via
+    associated command-line options to the script) that gcc/Makefile.in
+    can set:
+    
+    * ALT_CC_UNDER_TEST, ALT_CXX_UNDER_TEST and COMPAT_OPTIONS are used in
+      compat testing (against the same or a different compiler).
+    
+    * The libiconv variable is used for testing iconv support for
+      particular character sets, and defaults to -liconv if not set in
+      site.exp, which is wrong on systems with iconv in libc; keep the
+      default, but add an option to override this.
+    
+      Note that the dg-require-iconv testing is currently bogus in a cross
+      environment, and this patch does nothing to address that.  The tests
+      using dg-require-iconv actually care about character set support on
+      the *host*, for character conversions carried out in the compiler,
+      and the libiconv setting put in site.exp by gcc/Makefile.in is a
+      *host* library setting.  But dg-require-iconv /
+      check_iconv_available tests availability when compiling, linking and
+      executing for the *target*.  If the host and target have close
+      enough to the same OS, this may work by accident, but otherwise it
+      will incorrectly enable / disable these tests based on target
+      information (but using a libiconv setting designed for the host)
+      when it should be based on host information.
+    
+            * test_installed (--with-alt-cc=, --with-alt-cxx=)
+            (--with-compat-options=, --with-libiconv=): New options.
+
+diff --git a/contrib/test_installed b/contrib/test_installed
+index 77492cabe171..42c3f12b7d78 100755
+--- a/contrib/test_installed
++++ b/contrib/test_installed
+@@ -42,6 +42,7 @@ if test -f site.exp; then
+     exit 1
+ fi
+ 
++libiconv=-liconv
+ while true; do
+   case "$1" in
+   --with-testsuite=*) testsuite=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+@@ -51,6 +52,10 @@ while true; do
+   --with-gcc=*) GCC_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --with-g++=*) GXX_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --with-gfortran=*) GFORTRAN_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-alt-cc=*) ALT_CC_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-alt-cxx=*) ALT_CXX_UNDER_TEST=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-compat-options=*) COMPAT_OPTIONS=`echo "$1" | sed 's/[^=]*=//'`; shift;;
++  --with-libiconv=*) libiconv=`echo "$1" | sed 's/[^=]*=//'`; shift;;
+   --without-gcc) GCC_UNDER_TEST=no; shift;;
+   --without-g++) GXX_UNDER_TEST=no; shift;;
+   --without-gfortran) GFORTRAN_UNDER_TEST=no; shift;;
+@@ -78,6 +83,10 @@ Supported arguments:
+ --with-gcc=/some/dir/bin/gcc  use specified gcc program [gcc]
+ --with-g++=/some/dir/bin/g++  use specified g++ program [g++]
+ --with-gfortran=/some/dir/bin/gfortran  use specified gfortran program [gfortran]
++--with-alt-cc=/some/compiler  use specified alternative compiler in compat tests
++--with-alt-cxx=/some/compiler use specified alternative compiler in compat tests
++--with-compat-options=opts    use specified COMPAT_OPTIONS in compat tests
++--with-libiconv=linker-args   use given arguments to link with iconv [-liconv]
+ --without-gcc                 do not run gcc testsuite
+ --without-g++                 do not run g++ testsuite
+ --without-gfortran            do not run gfortran testsuite
+@@ -108,6 +117,7 @@ cat >site.exp <<EOF
+ set rootme "."
+ set tmpdir "${tmpdir-`${PWDCMD-pwd}`}"
+ set srcdir "${testsuite-${srcdir}/gcc/testsuite}"
++set libiconv "$libiconv"
+ set CFLAGS ""
+ set CXXFLAGS ""
+ set GCC_UNDER_TEST "${GCC_UNDER_TEST-${prefix}${prefix+/bin/}gcc}"
+@@ -123,6 +133,15 @@ if test x${target} != x; then
+   echo "set target_triplet $target" >> site.exp
+   echo "set target_alias $target" >> site.exp
+ fi
++if test x"$ALT_CC_UNDER_TEST" != x; then
++  echo "set ALT_CC_UNDER_TEST \"${ALT_CC_UNDER_TEST}\"" >> site.exp
++fi
++if test x"$ALT_CXX_UNDER_TEST" != x; then
++  echo "set ALT_CXX_UNDER_TEST \"${ALT_CXX_UNDER_TEST}\"" >> site.exp
++fi
++if test x"$COMPAT_OPTIONS" != x; then
++  echo "set COMPAT_OPTIONS \"${COMPAT_OPTIONS}\"" >> site.exp
++fi
+ 
+ test x"${GCC_UNDER_TEST}" = x"no" || runtest --tool gcc ${1+"$@"}
+ test x"${GXX_UNDER_TEST}" = x"no" || runtest --tool g++ ${1+"$@"}

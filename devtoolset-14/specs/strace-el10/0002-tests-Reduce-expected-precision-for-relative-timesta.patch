@@ -1,0 +1,65 @@
+From 189655e7a0603953393057f051ecc71cad3fa42e Mon Sep 17 00:00:00 2001
+From: Andrea Bolognani <abologna@redhat.com>
+Date: Mon, 20 Jan 2025 16:27:17 +0100
+Subject: [PATCH] tests: Reduce expected precision for relative-timestamps
+ tests
+
+Currently we have a very small amount of tolerance around the
+expected 1.0s sleep time, specifically 0.1s in either direction.
+
+If the machine is not very fast (e.g. StarFive VisionFive 2, a
+very popular and reasonably performant riscv64 board that's now
+a couple of years old) and is heavily loaded (e.g. because other
+builds are running at the same time or the test suite has been
+executed with 'make -j check'), then the test might fail because
+of an additional delay that's as small as 0.1s.
+
+Since the test is really intended to ensure that the timestamps
+are displayed using the requested precision, reporting a failure
+in this case is not very useful. Instead, we should tolerate
+delays of up to 1.0s as long as the timestamps are printed out
+using the expected format.
+
+Signed-off-by: Andrea Bolognani <abologna@redhat.com>
+---
+ tests/strace--relative-timestamps-ms.expected | 2 +-
+ tests/strace--relative-timestamps-ns.expected | 2 +-
+ tests/strace--relative-timestamps-us.expected | 2 +-
+ tests/strace--relative-timestamps.expected    | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/tests/strace--relative-timestamps-ms.expected b/tests/strace--relative-timestamps-ms.expected
+index 9fff29620..ffd6a24ba 100644
+--- a/tests/strace--relative-timestamps-ms.expected
++++ b/tests/strace--relative-timestamps-ms.expected
+@@ -1,2 +1,2 @@
+ [ ]{5}0\.0{3} execve\("\.\./sleep", \["\.\./sleep", "1"\], 0x[[:xdigit:]]* /\* [[:digit:]]* vars \*/\) = 0
+-[ ]{5}(1\.[01]|0\.9)[[:digit:]]{2} \+\+\+ exited with 0 \+\+\+
++[ ]{5}[01]\.[[:digit:]]{3} \+\+\+ exited with 0 \+\+\+
+diff --git a/tests/strace--relative-timestamps-ns.expected b/tests/strace--relative-timestamps-ns.expected
+index d72c47791..e882d6953 100644
+--- a/tests/strace--relative-timestamps-ns.expected
++++ b/tests/strace--relative-timestamps-ns.expected
+@@ -1,2 +1,2 @@
+ [ ]{5}0\.0{9} execve\("\.\./sleep", \["\.\./sleep", "1"\], 0x[[:xdigit:]]* /\* [[:digit:]]* vars \*/\) = 0
+-[ ]{5}(1\.[01]|0\.9)[[:digit:]]{8} \+\+\+ exited with 0 \+\+\+
++[ ]{5}[01]\.[[:digit:]]{9} \+\+\+ exited with 0 \+\+\+
+diff --git a/tests/strace--relative-timestamps-us.expected b/tests/strace--relative-timestamps-us.expected
+index 2a5b97733..a5c40d174 100644
+--- a/tests/strace--relative-timestamps-us.expected
++++ b/tests/strace--relative-timestamps-us.expected
+@@ -1,2 +1,2 @@
+ [ ]{5}0\.0{6} execve\("\.\./sleep", \["\.\./sleep", "1"\], 0x[[:xdigit:]]* /\* [[:digit:]]* vars \*/\) = 0
+-[ ]{5}(1\.[01]|0\.9)[[:digit:]]{5} \+\+\+ exited with 0 \+\+\+
++[ ]{5}[01]\.[[:digit:]]{6} \+\+\+ exited with 0 \+\+\+
+diff --git a/tests/strace--relative-timestamps.expected b/tests/strace--relative-timestamps.expected
+index 2a5b97733..a5c40d174 100644
+--- a/tests/strace--relative-timestamps.expected
++++ b/tests/strace--relative-timestamps.expected
+@@ -1,2 +1,2 @@
+ [ ]{5}0\.0{6} execve\("\.\./sleep", \["\.\./sleep", "1"\], 0x[[:xdigit:]]* /\* [[:digit:]]* vars \*/\) = 0
+-[ ]{5}(1\.[01]|0\.9)[[:digit:]]{5} \+\+\+ exited with 0 \+\+\+
++[ ]{5}[01]\.[[:digit:]]{6} \+\+\+ exited with 0 \+\+\+
+-- 
+2.49.0
+

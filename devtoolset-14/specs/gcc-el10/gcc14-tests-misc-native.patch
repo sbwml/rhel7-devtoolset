@@ -1,0 +1,69 @@
+commit 5bebe71d30b9c7d1479a9b8c0de342bf3ada4b8b
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Mon Jan 19 21:16:46 2026 +0000
+
+    testsuite: Do not restrict five tests to { target native }
+    
+    Five miscellaneous tests use { target native }, while not doing
+    anything that actually needs some kind of special handling for cross
+    testing.  Remove the { target native } restriction from those tests.
+    
+    Tested for x86_64-pc-linux-gnu, and with cross to aarch64-linux.
+    
+            * g++.old-deja/g++.mike/eh30.C, g++.old-deja/g++.mike/p4750.C,
+            g++.old-deja/g++.robertl/eb106.C, g++.old-deja/g++.robertl/eb83.C,
+            gcc.dg/20020201-1.c: Do not use { target native }.
+
+diff --git a/gcc/testsuite/g++.old-deja/g++.mike/eh30.C b/gcc/testsuite/g++.old-deja/g++.mike/eh30.C
+index 848809245c14..31c2c856f0c2 100644
+--- a/gcc/testsuite/g++.old-deja/g++.mike/eh30.C
++++ b/gcc/testsuite/g++.old-deja/g++.mike/eh30.C
+@@ -1,4 +1,4 @@
+-// { dg-do assemble { target native } }
++// { dg-do assemble }
+ // { dg-options "-fexceptions -fPIC -S" }
+ 
+ int
+diff --git a/gcc/testsuite/g++.old-deja/g++.mike/p4750.C b/gcc/testsuite/g++.old-deja/g++.mike/p4750.C
+index ccf462be00d4..f9353e529fab 100644
+--- a/gcc/testsuite/g++.old-deja/g++.mike/p4750.C
++++ b/gcc/testsuite/g++.old-deja/g++.mike/p4750.C
+@@ -1,4 +1,4 @@
+-// { dg-do assemble { target native } }
++// { dg-do assemble }
+ // { dg-options "-fpic -pedantic-errors -S" }
+ // prms-id: 4750
+ 
+diff --git a/gcc/testsuite/g++.old-deja/g++.robertl/eb106.C b/gcc/testsuite/g++.old-deja/g++.robertl/eb106.C
+index b341cff55023..3f4dce099fe8 100644
+--- a/gcc/testsuite/g++.old-deja/g++.robertl/eb106.C
++++ b/gcc/testsuite/g++.old-deja/g++.robertl/eb106.C
+@@ -1,4 +1,4 @@
+-// { dg-do assemble { target native } }
++// { dg-do assemble }
+ // { dg-options "-O2 -fPIC " }
+ struct T
+ {
+diff --git a/gcc/testsuite/g++.old-deja/g++.robertl/eb83.C b/gcc/testsuite/g++.old-deja/g++.robertl/eb83.C
+index 47cf5b88f041..41e8ff629979 100644
+--- a/gcc/testsuite/g++.old-deja/g++.robertl/eb83.C
++++ b/gcc/testsuite/g++.old-deja/g++.robertl/eb83.C
+@@ -1,4 +1,4 @@
+-// { dg-do run { target native } }
++// { dg-do run }
+ // { dg-options "-fprofile-arcs -ftest-coverage" }
+ void
+ test_swap(int& x, int& y) throw()
+diff --git a/gcc/testsuite/gcc.dg/20020201-1.c b/gcc/testsuite/gcc.dg/20020201-1.c
+index 1cb2a8788044..fb48a230e962 100644
+--- a/gcc/testsuite/gcc.dg/20020201-1.c
++++ b/gcc/testsuite/gcc.dg/20020201-1.c
+@@ -5,7 +5,7 @@
+    call-clobbered global pointer.  */
+ 
+ /* { dg-options "-fprofile-arcs" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #include <stdlib.h>
+ 

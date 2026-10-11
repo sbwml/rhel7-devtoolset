@@ -1,0 +1,922 @@
+commit 39a93faab07ff64a9e828f487f231b013b6cdbdc
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Fri Jan 23 21:14:31 2026 +0000
+
+    testsuite: Enable cross testing for gcov tests
+    
+    Tests of gcov are generally restricted to { target native }.  The
+    issue for these tests is the need to transfer .gcda files from the
+    target to the host before running gcov.  Implement that support and
+    remove the { target native } restrictions for these tests.
+    
+    Note that by default code built to generate coverage data expects to
+    be able to write .gcda files to the same directory name in which the
+    compiler generated its output, so if that path cannot be created by
+    the tests on the target then they may still not work in a cross setup.
+    Other options involving -fprofile-dir are possible but involve their
+    own complications such as mangling of the .gcda file name (the
+    mangling logic would then need replicating in gcov.exp).  Copying
+    files from the target using such absolute directory paths is what
+    already happens with gcc.dg/tree-prof tests using profopt.exp (and
+    those already work in a cross configuration except for a few using
+    dg-additional-sources), so this change is effectively making the gcov
+    tests work more like the tree-prof ones.
+    
+    Note also that [remote_file host absolute ...] may require appropriate
+    support in your host board file for the case of a remote host (this
+    isn't an operation DejaGnu knows about doing remotely by default).
+    The logic for determining .gcda paths does mean it's the absolute path
+    on host, not on build, that is relevant.
+    
+    Tested for x86_64-pc-linux-gnu to make sure native testing isn't
+    broken, and with cross to aarch64-linux.
+    
+            * g++.dg/gcov/gcov-1.C, g++.dg/gcov/gcov-10.C,
+            g++.dg/gcov/gcov-11.C, g++.dg/gcov/gcov-12.C,
+            g++.dg/gcov/gcov-13.C, g++.dg/gcov/gcov-14.C,
+            g++.dg/gcov/gcov-15.C, g++.dg/gcov/gcov-16.C,
+            g++.dg/gcov/gcov-17.C, g++.dg/gcov/gcov-18.C,
+            g++.dg/gcov/gcov-19.C, g++.dg/gcov/gcov-2.C,
+            g++.dg/gcov/gcov-20.C, g++.dg/gcov/gcov-21.C,
+            g++.dg/gcov/gcov-23.C, g++.dg/gcov/gcov-3.C, g++.dg/gcov/gcov-4.C,
+            g++.dg/gcov/gcov-5.C, g++.dg/gcov/gcov-7.C, g++.dg/gcov/gcov-8.C,
+            g++.dg/gcov/gcov-dump-1.C, g++.dg/gcov/gcov-dump-2.C,
+            g++.dg/gcov/gcov-threads-1.C, g++.dg/gcov/loop.C,
+            g++.dg/gcov/pr16855-priority.C, g++.dg/gcov/pr16855.C,
+            g++.dg/gcov/pr84548.C, g++.dg/gcov/pr86109.C,
+            g++.dg/gcov/pr88045.C, g++.dg/gcov/pr88263-2.C,
+            g++.dg/gcov/pr88263.C, g++.dg/gcov/pr97069.C,
+            g++.dg/gcov/pr98273.C, g++.dg/gcov/ternary.C,
+            gcc.misc-tests/gcov-1.c, gcc.misc-tests/gcov-10.c,
+            gcc.misc-tests/gcov-10b.c, gcc.misc-tests/gcov-11.c,
+            gcc.misc-tests/gcov-12.c, gcc.misc-tests/gcov-13.c,
+            gcc.misc-tests/gcov-14.c, gcc.misc-tests/gcov-15.c,
+            gcc.misc-tests/gcov-16.c, gcc.misc-tests/gcov-17.c,
+            gcc.misc-tests/gcov-18.c, gcc.misc-tests/gcov-19.c,
+            gcc.misc-tests/gcov-1a.c, gcc.misc-tests/gcov-2.c,
+            gcc.misc-tests/gcov-20.c, gcc.misc-tests/gcov-22.c,
+            gcc.misc-tests/gcov-24.c, gcc.misc-tests/gcov-25.c,
+            gcc.misc-tests/gcov-26.c, gcc.misc-tests/gcov-27.c,
+            gcc.misc-tests/gcov-28.c, gcc.misc-tests/gcov-29.c,
+            gcc.misc-tests/gcov-3.c, gcc.misc-tests/gcov-30.c,
+            gcc.misc-tests/gcov-33.c, gcc.misc-tests/gcov-34.c,
+            gcc.misc-tests/gcov-4.c, gcc.misc-tests/gcov-4b.c,
+            gcc.misc-tests/gcov-5b.c, gcc.misc-tests/gcov-6.c,
+            gcc.misc-tests/gcov-7.c, gcc.misc-tests/gcov-8.c,
+            gcc.misc-tests/gcov-9.c, gcc.misc-tests/gcov-pr83813.c,
+            gcc.misc-tests/gcov-pr84758.c, gcc.misc-tests/gcov-pr85217.c,
+            gcc.misc-tests/gcov-pr85332.c, gcc.misc-tests/gcov-pr85338.c,
+            gcc.misc-tests/gcov-pr85350.c, gcc.misc-tests/gcov-pr85372.c,
+            gcc.misc-tests/gcov-pr86536.c, gcc.misc-tests/gcov-pr90574-1.c,
+            gcc.misc-tests/gcov-pr90574-2.c, gdc.dg/gcov1.d,
+            gnat.dg/gcov/check.adb: Do not restrict to { target native }.
+            * lib/gcov.exp (transfer-gcda): New.
+            (clean-gcov-file): Delete .gcda file on target.
+            (run-gcov): Transfer .gcda files from target.
+
+(Note: GCC 14 version has adjusted diff context to avoid merge
+conflicts and also changes fewer tests because of new tests added
+upstream since GCC 14.)
+
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-1.C b/gcc/testsuite/g++.dg/gcov/gcov-1.C
+index ee383b480a87..40fee7992a6d 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-1.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-1.C
+@@ -2,7 +2,7 @@
+    constructs are reported correctly by gcov. */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ extern "C" void abort (void);
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-10.C b/gcc/testsuite/g++.dg/gcov/gcov-10.C
+index 4c91be94ee46..d3942ceabd18 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-10.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-10.C
+@@ -1,7 +1,7 @@
+ /* Ensure PIC sequence used for comdat functions */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -fpic" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-effective-target fpic } */
+ 
+ inline int __attribute__ ((noinline)) Foo ()
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-11.C b/gcc/testsuite/g++.dg/gcov/gcov-11.C
+index fa0890206f3a..243c112506ae 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-11.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-11.C
+@@ -2,7 +2,7 @@
+    distinct from  unexecuted normal regions.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void Baz (int i)
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-12.C b/gcc/testsuite/g++.dg/gcov/gcov-12.C
+index 9f2b29b4da50..da694bc7c91b 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-12.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-12.C
+@@ -1,6 +1,6 @@
+ /* PR 51113 */
+ /* { dg-options "-fprofile-arcs -ftest-coverage -fpic -fno-implicit-constexpr" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-additional-sources "gcovpart-12b.C" } */
+ 
+ struct Foo {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-13.C b/gcc/testsuite/g++.dg/gcov/gcov-13.C
+index c262a71f5364..45668f65cd3a 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-13.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-13.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void Baz (int i)
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-14.C b/gcc/testsuite/g++.dg/gcov/gcov-14.C
+index b069d0e1881c..ff16f399a03b 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-14.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-14.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage -Ofast" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #include <iostream>
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-15.C b/gcc/testsuite/g++.dg/gcov/gcov-15.C
+index fcd16b00b1c4..53752449b73f 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-15.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-15.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/64634
+ // { dg-options "-fprofile-arcs -ftest-coverage" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ void catchEx ()		// count(1)
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-16.C b/gcc/testsuite/g++.dg/gcov/gcov-16.C
+index f09d4060cbdb..beea2e55e1ae 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-16.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-16.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/64634
+ // { dg-options "-fprofile-arcs -ftest-coverage" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ int main()
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-17.C b/gcc/testsuite/g++.dg/gcov/gcov-17.C
+index efe019599a59..19d0197ba776 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-17.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-17.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "--coverage -std=c++11" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ template <class T> class Foo
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-18.C b/gcc/testsuite/g++.dg/gcov/gcov-18.C
+index 620aef126995..ecc4716cbfa7 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-18.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-18.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "--coverage -fcondition-coverage -std=c++11" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #include <vector>
+ #include <stdexcept>
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-2.C b/gcc/testsuite/g++.dg/gcov/gcov-2.C
+index 05db15de7cc5..9fdcfa84fbdd 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-2.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-2.C
+@@ -1,7 +1,7 @@
+ /* Verify line coverage counts for simple member functions. */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -fno-implicit-constexpr" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ class C {
+ public:
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-3.C b/gcc/testsuite/g++.dg/gcov/gcov-3.C
+index aff063a4b90f..c128757f281b 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-3.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-3.C
+@@ -2,7 +2,7 @@
+    within a header file.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #include "gcov-3.h"
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-4.C b/gcc/testsuite/g++.dg/gcov/gcov-4.C
+index 2f83ff1becc6..e148d5c95538 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-4.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-4.C
+@@ -4,7 +4,7 @@
+ #include <stdio.h>
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -fno-exceptions" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ class foo {
+ public:
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-5.C b/gcc/testsuite/g++.dg/gcov/gcov-5.C
+index 9ada41802caa..fc70b3bee6f7 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-5.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-5.C
+@@ -5,7 +5,7 @@
+ #include <stdlib.h>
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -fno-inline" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ class A {
+   int count;
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-7.C b/gcc/testsuite/g++.dg/gcov/gcov-7.C
+index 334db1837c85..6240a8fb4278 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-7.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-7.C
+@@ -3,7 +3,7 @@
+    declaration.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ struct foo
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-8.C b/gcc/testsuite/g++.dg/gcov/gcov-8.C
+index 1c97c35d8c1e..bbb075ccea6b 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-8.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-8.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ class C {
+ public:
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-dump-1.C b/gcc/testsuite/g++.dg/gcov/gcov-dump-1.C
+index 774a7269ff2c..8aba2afadcd3 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-dump-1.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-dump-1.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-generate -ftest-coverage " } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int value;
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-dump-2.C b/gcc/testsuite/g++.dg/gcov/gcov-dump-2.C
+index e748989d2c0b..f50451cf0769 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-dump-2.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-dump-2.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-generate -ftest-coverage " } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int value;
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/gcov-threads-1.C b/gcc/testsuite/g++.dg/gcov/gcov-threads-1.C
+index 3ae00789439b..54fcdcab39c2 100644
+--- a/gcc/testsuite/g++.dg/gcov/gcov-threads-1.C
++++ b/gcc/testsuite/g++.dg/gcov/gcov-threads-1.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage -pthread -fprofile-update=atomic" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-effective-target profile_update_atomic } */
+ 
+ #include <stdint.h>
+diff --git a/gcc/testsuite/g++.dg/gcov/loop.C b/gcc/testsuite/g++.dg/gcov/loop.C
+index e63cb92e6e6d..6d5e4a8632a4 100644
+--- a/gcc/testsuite/g++.dg/gcov/loop.C
++++ b/gcc/testsuite/g++.dg/gcov/loop.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ unsigned
+ loop (unsigned n, int value)		  /* count(14.0k) */
+diff --git a/gcc/testsuite/g++.dg/gcov/pr16855-priority.C b/gcc/testsuite/g++.dg/gcov/pr16855-priority.C
+index c7a58397bb91..bd6acd2c3e84 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr16855-priority.C
++++ b/gcc/testsuite/g++.dg/gcov/pr16855-priority.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-effective-target init_priority } */
+ 
+ #include <stdlib.h>
+diff --git a/gcc/testsuite/g++.dg/gcov/pr16855.C b/gcc/testsuite/g++.dg/gcov/pr16855.C
+index f9b86a40001f..5457f4fe3623 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr16855.C
++++ b/gcc/testsuite/g++.dg/gcov/pr16855.C
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ /* See PR91087 for information on Darwin xfails. */
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/pr84548.C b/gcc/testsuite/g++.dg/gcov/pr84548.C
+index 3b60b90e2a26..a83f4cc8b1af 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr84548.C
++++ b/gcc/testsuite/g++.dg/gcov/pr84548.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/84548
+ // { dg-options "-fprofile-arcs -ftest-coverage" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ // TODO: add support for groups to gcov.exp script
+ 
+ struct A { static int foo () { return 1; }; static int bar () {
+diff --git a/gcc/testsuite/g++.dg/gcov/pr86109.C b/gcc/testsuite/g++.dg/gcov/pr86109.C
+index 9052d2e5a042..63549d68509c 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr86109.C
++++ b/gcc/testsuite/g++.dg/gcov/pr86109.C
+@@ -1,6 +1,6 @@
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -std=c++11" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main()
+ {
+diff --git a/gcc/testsuite/g++.dg/gcov/pr88045.C b/gcc/testsuite/g++.dg/gcov/pr88045.C
+index 1b077a5e61a2..9961e9d16a5e 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr88045.C
++++ b/gcc/testsuite/g++.dg/gcov/pr88045.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/88045
+ // { dg-options "-fprofile-arcs -ftest-coverage -std=c++11" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ #include <numeric>
+ #include <vector>
+diff --git a/gcc/testsuite/g++.dg/gcov/pr88263-2.C b/gcc/testsuite/g++.dg/gcov/pr88263-2.C
+index f0cf15f5d0a3..a4ddf776a0d8 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr88263-2.C
++++ b/gcc/testsuite/g++.dg/gcov/pr88263-2.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/88263
+ // { dg-options "-fprofile-arcs -ftest-coverage -std=c++11" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ #include <sstream>
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/pr88263.C b/gcc/testsuite/g++.dg/gcov/pr88263.C
+index 854772f0594c..37943a3fe40f 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr88263.C
++++ b/gcc/testsuite/g++.dg/gcov/pr88263.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/88263
+ // { dg-options "-fprofile-arcs -ftest-coverage -std=c++11" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ #include <sstream>
+ 
+diff --git a/gcc/testsuite/g++.dg/gcov/pr97069.C b/gcc/testsuite/g++.dg/gcov/pr97069.C
+index 040e336662a9..9171399235e1 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr97069.C
++++ b/gcc/testsuite/g++.dg/gcov/pr97069.C
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/97069
+ // { dg-options "--coverage" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ # 0 "pr97069.C"
+ # 0 "<built-in>"
+diff --git a/gcc/testsuite/g++.dg/gcov/pr98273.C b/gcc/testsuite/g++.dg/gcov/pr98273.C
+index bfa83cbe4d00..45cd476ed24d 100644
+--- a/gcc/testsuite/g++.dg/gcov/pr98273.C
++++ b/gcc/testsuite/g++.dg/gcov/pr98273.C
+@@ -1,7 +1,7 @@
+ /* PR gcov-profile/98273 */
+ 
+ /* { dg-options "--coverage -std=c++11" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int
+ main ()
+diff --git a/gcc/testsuite/g++.dg/gcov/ternary.C b/gcc/testsuite/g++.dg/gcov/ternary.C
+index 9b8e34644b46..5ad2b2c6a4e1 100644
+--- a/gcc/testsuite/g++.dg/gcov/ternary.C
++++ b/gcc/testsuite/g++.dg/gcov/ternary.C
+@@ -1,5 +1,5 @@
+ // { dg-options "-fprofile-arcs -ftest-coverage" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ 
+ int b, c, d, e;
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-1.c b/gcc/testsuite/gcc.misc-tests/gcov-1.c
+index 99a02790dee8..e6606f99ffae 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-1.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-1.c
+@@ -1,7 +1,7 @@
+ /* Test Gcov basics.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void noop ()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-10.c b/gcc/testsuite/gcc.misc-tests/gcov-10.c
+index bd1d418f378a..8a8370228b99 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-10.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-10.c
+@@ -1,7 +1,7 @@
+ /* Test gcov block mode.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main ()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-10b.c b/gcc/testsuite/gcc.misc-tests/gcov-10b.c
+index 148d779fdb35..2a4f7a3b25ce 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-10b.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-10b.c
+@@ -1,7 +1,7 @@
+ /* Test gcov block mode.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main ()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-11.c b/gcc/testsuite/gcc.misc-tests/gcov-11.c
+index a1037a552a94..153a8d2e3965 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-11.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-11.c
+@@ -1,7 +1,7 @@
+ /* Test gcov block mode.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int one = 1; /* subvert constant folder. */
+ int zero = 0;
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-12.c b/gcc/testsuite/gcc.misc-tests/gcov-12.c
+index f3d6924c9803..2428b8f990e8 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-12.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-12.c
+@@ -1,6 +1,6 @@
+ /* Test gcov weak ellision.  */
+ 
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-weak "" } */
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-13.c b/gcc/testsuite/gcc.misc-tests/gcov-13.c
+index b42b904ef3e2..b1f0d79ddff4 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-13.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-13.c
+@@ -1,6 +1,6 @@
+ /* Test gcov weak ellision.  */
+ 
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+ /* { dg-require-weak "" } */
+ /* { dg-additional-sources "gcovpart-13b.c" } */
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-14.c b/gcc/testsuite/gcc.misc-tests/gcov-14.c
+index 61a9191c0687..847b09cc13bf 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-14.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-14.c
+@@ -1,6 +1,6 @@
+ /* Test gcov extern inline.  */
+ 
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-options "-O2 -fprofile-arcs -ftest-coverage -fgnu89-inline" } */
+ /* The following line arranges that Darwin has behavior like elf weak import.  */
+ /* { dg-additional-options "-Wl,-U,_Foo" { target *-*-darwin* }  } */
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-15.c b/gcc/testsuite/gcc.misc-tests/gcov-15.c
+index 04273fcec425..d1a66b2ccc1f 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-15.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-15.c
+@@ -1,7 +1,7 @@
+ /* Test gcov multiple paths to file.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #if !RECURSIVE
+ #define RECURSIVE 1
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-16.c b/gcc/testsuite/gcc.misc-tests/gcov-16.c
+index 738113c92cb8..5a6a723364f6 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-16.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-16.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void
+ bar (void)
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-17.c b/gcc/testsuite/gcc.misc-tests/gcov-17.c
+index e38860808445..c937facf1f2c 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-17.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-17.c
+@@ -22,7 +22,7 @@ by both branches of the condition in <bb 3>.
+ */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ unsigned int
+ UuT (void)
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-18.c b/gcc/testsuite/gcc.misc-tests/gcov-18.c
+index ae1017866db9..8c42e63a6f96 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-18.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-18.c
+@@ -3,7 +3,7 @@
+    just once.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int a = 0;
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-19.c b/gcc/testsuite/gcc.misc-tests/gcov-19.c
+index 44e2f135e2ae..17d6dde87c68 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-19.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-19.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fcondition-coverage -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ /* Some side effect to stop branches from being pruned.  */
+ int x = 0;
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-1a.c b/gcc/testsuite/gcc.misc-tests/gcov-1a.c
+index 2b9fabce66c9..9279b7855945 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-1a.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-1a.c
+@@ -1,7 +1,7 @@
+ /* Test Gcov basics.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -fprofile-abs-path" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void noop ()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-2.c b/gcc/testsuite/gcc.misc-tests/gcov-2.c
+index aa3e4b74e902..dde8f8b7926a 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-2.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-2.c
+@@ -1,7 +1,7 @@
+ /* Test Gcov basics.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage -g" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void noop ()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-20.c b/gcc/testsuite/gcc.misc-tests/gcov-20.c
+index ca8c12aad2bc..b1357ca47f3f 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-20.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-20.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fcondition-coverage -ftest-coverage -fprofile-update=atomic" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-effective-target profile_update_atomic } */
+ 
+ /* Some side effect to stop branches from being pruned */
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-22.c b/gcc/testsuite/gcc.misc-tests/gcov-22.c
+index 7ca78467ca31..0c8aba6996da 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-22.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-22.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fcondition-coverage -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #include <setjmp.h>
+ jmp_buf buf;
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-24.c b/gcc/testsuite/gcc.misc-tests/gcov-24.c
+index 395099bd7ae3..335857da30cc 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-24.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-24.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-3.c b/gcc/testsuite/gcc.misc-tests/gcov-3.c
+index 5b07dd74bd1b..5107f89d324a 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-3.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-3.c
+@@ -1,4 +1,4 @@
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-effective-target label_values } */
+ 
+ /* Test Gcov with computed gotos.
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-4.c b/gcc/testsuite/gcc.misc-tests/gcov-4.c
+index da7929ef7fcd..f792538e1f54 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-4.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-4.c
+@@ -2,7 +2,7 @@
+    correctly by gcov. */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ extern void abort (void);
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-4b.c b/gcc/testsuite/gcc.misc-tests/gcov-4b.c
+index da98749f719a..3a67b2f6bb5c 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-4b.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-4b.c
+@@ -2,7 +2,7 @@
+    correctly by gcov. */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ extern void abort (void);
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-5b.c b/gcc/testsuite/gcc.misc-tests/gcov-5b.c
+index cbd3958718cc..da53879bd33b 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-5b.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-5b.c
+@@ -2,7 +2,7 @@
+    that are large enough to hold the count. */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #define LIMIT1 7000
+ #define LIMIT2 7000
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-6.c b/gcc/testsuite/gcc.misc-tests/gcov-6.c
+index aefab3ed33a7..9b46d64214a7 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-6.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-6.c
+@@ -4,7 +4,7 @@
+    for call return percentages was added.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ extern void exit (int);
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-7.c b/gcc/testsuite/gcc.misc-tests/gcov-7.c
+index 2e0f6e8b03c1..a5a20a0a3cd2 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-7.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-7.c
+@@ -2,7 +2,7 @@
+  * and call return percentages for functions that call longjmp. */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ #include <setjmp.h>
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-8.c b/gcc/testsuite/gcc.misc-tests/gcov-8.c
+index 7223bde8374c..6e0eb918d5e4 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-8.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-8.c
+@@ -6,7 +6,7 @@
+ */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int proxy (int i)
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-9.c b/gcc/testsuite/gcc.misc-tests/gcov-9.c
+index 6e1b4a85c0c5..ed8d57aa9342 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-9.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-9.c
+@@ -1,7 +1,7 @@
+ /* Test gcov block mode.  */
+ 
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main ()
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr83813.c b/gcc/testsuite/gcc.misc-tests/gcov-pr83813.c
+index ac935b969f84..8604f1f72f06 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr83813.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr83813.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ union U
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr84758.c b/gcc/testsuite/gcc.misc-tests/gcov-pr84758.c
+index 2ae6900375fa..a9530a14e24b 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr84758.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr84758.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int x, y;
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr85217.c b/gcc/testsuite/gcc.misc-tests/gcov-pr85217.c
+index 86a3c4b5a129..cdc2b6fb91ef 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr85217.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr85217.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int a=0;
+ 
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr85332.c b/gcc/testsuite/gcc.misc-tests/gcov-pr85332.c
+index 73e50b19fc70..081afdcb0f90 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr85332.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr85332.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int doit(int sel, int n, void *p)
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr85338.c b/gcc/testsuite/gcc.misc-tests/gcov-pr85338.c
+index d1e16d29c7a8..8416f478348b 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr85338.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr85338.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ void Test(long long Val, int Amt)
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr85350.c b/gcc/testsuite/gcc.misc-tests/gcov-pr85350.c
+index 0383b81fdfb6..7bb8b0a359ca 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr85350.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr85350.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main (void)
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr85372.c b/gcc/testsuite/gcc.misc-tests/gcov-pr85372.c
+index 7c90e68b0dce..10409bd490c4 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr85372.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr85372.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-require-effective-target indirect_jumps } */
+ 
+ void *buf[5];
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr86536.c b/gcc/testsuite/gcc.misc-tests/gcov-pr86536.c
+index 481777359995..febfacd92431 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr86536.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr86536.c
+@@ -1,6 +1,6 @@
+ // PR gcov-profile/86536
+ // { dg-options "-fprofile-arcs -ftest-coverage" }
+-// { dg-do run { target native } }
++// { dg-do run }
+ // { dg-require-fork "" }
+ 
+ #include <stdlib.h>
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr90574-1.c b/gcc/testsuite/gcc.misc-tests/gcov-pr90574-1.c
+index 41ac9bb3eccb..8a6fb09b831d 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr90574-1.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr90574-1.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main(int argc, char **argv)
+ {
+diff --git a/gcc/testsuite/gcc.misc-tests/gcov-pr90574-2.c b/gcc/testsuite/gcc.misc-tests/gcov-pr90574-2.c
+index 2db70c96f715..1b6f4517b3eb 100644
+--- a/gcc/testsuite/gcc.misc-tests/gcov-pr90574-2.c
++++ b/gcc/testsuite/gcc.misc-tests/gcov-pr90574-2.c
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fprofile-arcs -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ int main(int argc, char **argv)
+ {
+diff --git a/gcc/testsuite/gdc.dg/gcov1.d b/gcc/testsuite/gdc.dg/gcov1.d
+index 10ffa4a0e308..048001663d5f 100644
+--- a/gcc/testsuite/gdc.dg/gcov1.d
++++ b/gcc/testsuite/gdc.dg/gcov1.d
+@@ -1,5 +1,5 @@
+ /* { dg-options "-fcondition-coverage -ftest-coverage" } */
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ 
+ /* Some side effect to stop branches from being pruned.  */
+ int x = 0;
+diff --git a/gcc/testsuite/gnat.dg/gcov/check.adb b/gcc/testsuite/gnat.dg/gcov/check.adb
+index b3cb8e36b92d..737272b01c31 100644
+--- a/gcc/testsuite/gnat.dg/gcov/check.adb
++++ b/gcc/testsuite/gnat.dg/gcov/check.adb
+@@ -1,5 +1,5 @@
+ -- { dg-options "-fprofile-arcs -ftest-coverage" }
+--- { dg-do run { target native } } */
++-- { dg-do run } */
+ 
+ procedure Check is
+ 
+diff --git a/gcc/testsuite/lib/gcov.exp b/gcc/testsuite/lib/gcov.exp
+index dd47d66d1b2e..eed104569be5 100644
+--- a/gcc/testsuite/lib/gcov.exp
++++ b/gcc/testsuite/lib/gcov.exp
+@@ -31,6 +31,23 @@ proc clean-gcov-file { testcase suffix } {
+     set basename [file tail $testcase]
+     set base [file rootname $basename]
+     remote_file host delete $base.$suffix
++    # The absolute path to the output when building on the host is
++    # used by the compiled program on the target to determine where
++    # the .gcda file goes there.
++    remote_file target delete [remote_file host absolute $base.$suffix]
++}
++
++# Transfer the .gcda file for a test from the target to the host.
++
++proc transfer-gcda { testcase } {
++    set basename [file tail $testcase]
++    set base [file rootname $basename]
++    # The absolute path to the output when building on the host is
++    # used by the compiled program on the target to determine where
++    # the .gcda file goes there.
++    set gcda [remote_file host absolute "$base.gcda"]
++    set gcda [remote_upload target $gcda]
++    remote_download host $gcda
+ }
+ 
+ #
+@@ -606,6 +623,14 @@ proc run-gcov { args } {
+     if { $gcov_remove_gcda } {
+ 	verbose "Removing $testcase.gcda"
+ 	clean-gcov-file $testcase "gcda"
++    } else {
++	transfer-gcda $testcase
++	global additional_sources_used
++	if [info exists additional_sources_used] {
++	    foreach srcfile $additional_sources_used {
++		transfer-gcda $srcfile
++	    }
++	}
+     }
+ 
+     verbose "Running $GCOV $testcase" 2

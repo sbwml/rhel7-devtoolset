@@ -1,0 +1,72 @@
+ libstdc++-v3/testsuite/libstdc++-prettyprinters/compat.cc        | 2 +-
+ libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx11.cc         | 2 +-
+ libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx17.cc         | 2 +-
+ libstdc++-v3/testsuite/libstdc++-prettyprinters/filesystem-ts.cc | 2 +-
+ libstdc++-v3/testsuite/libstdc++-prettyprinters/libfundts.cc     | 2 +-
+ 5 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/libstdc++-v3/testsuite/libstdc++-prettyprinters/compat.cc b/libstdc++-v3/testsuite/libstdc++-prettyprinters/compat.cc
+index 604a6f6415b..2ef5979834f 100644
+--- a/libstdc++-v3/testsuite/libstdc++-prettyprinters/compat.cc
++++ b/libstdc++-v3/testsuite/libstdc++-prettyprinters/compat.cc
+@@ -1,7 +1,7 @@
+ // { dg-options "-g -O0" }
+ // { dg-do run { target c++11 } }
+ 
+-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
++// Copyright (C) 2014-2025 Free Software Foundation, Inc.
+ //
+ // This file is part of the GNU ISO C++ Library.  This library is free
+ // software; you can redistribute it and/or modify it under the
+diff --git a/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx11.cc b/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx11.cc
+index 2f75d12703c..23f6d97ddd4 100644
+--- a/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx11.cc
++++ b/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx11.cc
+@@ -1,7 +1,7 @@
+ // { dg-do run { target c++11 } }
+ // { dg-options "-g -O0" }
+ 
+-// Copyright (C) 2011-2024 Free Software Foundation, Inc.
++// Copyright (C) 2011-2025 Free Software Foundation, Inc.
+ //
+ // This file is part of the GNU ISO C++ Library.  This library is free
+ // software; you can redistribute it and/or modify it under the
+diff --git a/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx17.cc b/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx17.cc
+index c8b70622bef..6dd2b60c0a5 100644
+--- a/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx17.cc
++++ b/libstdc++-v3/testsuite/libstdc++-prettyprinters/cxx17.cc
+@@ -1,7 +1,7 @@
+ // { dg-options "-g -O0" }
+ // { dg-do run { target c++17 } }
+ 
+-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
++// Copyright (C) 2014-2025 Free Software Foundation, Inc.
+ //
+ // This file is part of the GNU ISO C++ Library.  This library is free
+ // software; you can redistribute it and/or modify it under the
+diff --git a/libstdc++-v3/testsuite/libstdc++-prettyprinters/filesystem-ts.cc b/libstdc++-v3/testsuite/libstdc++-prettyprinters/filesystem-ts.cc
+index 9faeed02852..3221f2df90d 100644
+--- a/libstdc++-v3/testsuite/libstdc++-prettyprinters/filesystem-ts.cc
++++ b/libstdc++-v3/testsuite/libstdc++-prettyprinters/filesystem-ts.cc
+@@ -2,7 +2,7 @@
+ // { dg-do run { target c++11 } }
+ // { dg-require-filesystem-ts "" }
+ 
+-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
++// Copyright (C) 2020-2025 Free Software Foundation, Inc.
+ //
+ // This file is part of the GNU ISO C++ Library.  This library is free
+ // software; you can redistribute it and/or modify it under the
+diff --git a/libstdc++-v3/testsuite/libstdc++-prettyprinters/libfundts.cc b/libstdc++-v3/testsuite/libstdc++-prettyprinters/libfundts.cc
+index 7a6ee8d281e..bfb86885457 100644
+--- a/libstdc++-v3/testsuite/libstdc++-prettyprinters/libfundts.cc
++++ b/libstdc++-v3/testsuite/libstdc++-prettyprinters/libfundts.cc
+@@ -1,7 +1,7 @@
+ // { dg-do run { target c++14 } }
+ // { dg-options "-g -O0" }
+ 
+-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
++// Copyright (C) 2014-2025 Free Software Foundation, Inc.
+ //
+ // This file is part of the GNU ISO C++ Library.  This library is free
+ // software; you can redistribute it and/or modify it under the

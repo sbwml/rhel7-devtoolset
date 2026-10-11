@@ -1,0 +1,54 @@
+commit 311d2829db18a24c2e46d0434f463ebc1df00a56
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Thu Dec 11 23:20:54 2025 +0000
+
+    contrib: Use config.sub in test_installed
+    
+    Correctly running GCC testsuites with an installed compiler requires
+    both the canonical and noncanonical versions of the target triplet:
+    the canonical one for where the testsuite matches on target triplets,
+    and the noncanonical one for various "transform" calls used to find
+    binutils programs.  Make test_installed use config.sub to determine
+    the canonical target from any value passed with --target= (and thus
+    make logic to locate the toplevel source directory from its own
+    location unconditional, as it's now used to locate config.sub).
+    
+            * test_installed: Use config.sub to determine canonical target.
+
+diff --git a/contrib/test_installed b/contrib/test_installed
+index 42c3f12b7d78..530d21ed74ec 100755
+--- a/contrib/test_installed
++++ b/contrib/test_installed
+@@ -104,13 +104,16 @@ EOF
+   *) break;;
+   esac
+ done
+-  
++
++# Determine the source directory to find config.sub, whether or not
++# that is also used to locate the testsuite sources.
++file=$0
++while [ -h $file ]; do
++  file=`ls -l $file | sed s/'.* -> '//`
++done
++top_srcdir=`CDPATH=. && cd \`echo "$file" | sed 's,/*[^/]*$,,;s,^$,.,'\`/.. >/dev/null && ${PWDCMD-pwd}`
+ if test x"${testsuite+set}" != x"set" && test x"${srcdir+set}" != x"set"; then
+-  file=$0
+-  while [ -h $file ]; do
+-    file=`ls -l $file | sed s/'.* -> '//`
+-  done
+-  srcdir=`CDPATH=. && cd \`echo "$file" | sed 's,/*[^/]*$,,;s,^$,.,'\`/.. >/dev/null && ${PWDCMD-pwd}`
++  srcdir=$top_srcdir
+ fi
+ 
+ cat >site.exp <<EOF
+@@ -130,7 +133,8 @@ set HOSTCFLAGS ""
+ set HOSTCXXFLAGS ""
+ EOF
+ if test x${target} != x; then
+-  echo "set target_triplet $target" >> site.exp
++  target_canonical=`$top_srcdir/config.sub $target`
++  echo "set target_triplet $target_canonical" >> site.exp
+   echo "set target_alias $target" >> site.exp
+ fi
+ if test x"$ALT_CC_UNDER_TEST" != x; then

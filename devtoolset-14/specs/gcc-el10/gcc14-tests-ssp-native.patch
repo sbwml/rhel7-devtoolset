@@ -1,0 +1,55 @@
+commit 531150b1ac41a6aebfa39dec28730c9f3b10a930
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Tue Jan 6 22:11:20 2026 +0000
+
+    testsuite: Do not restrict stack protector tests to native testing
+    
+    Three stack protector tests in gcc.dg use
+    
+    /* { dg-do run { target native } } */
+    
+    for no apparent reason, since there is nothing in those tests that
+    should care about the difference between native and cross testing.
+    They also have
+    
+    /* { dg-require-effective-target fstack_protector } */
+    
+    which is the actually relevant condition for such tests.  Remove the
+    { target native } restriction.
+    
+    Tested natively for x86_64-pc-linux-gnu, and with cross to
+    aarch64-linux.
+    
+            * gcc.dg/ssp-1.c, gcc.dg/ssp-2.c, gcc.dg/stackprotectexplicit1.c:
+            Do not restrict to { target native }.
+
+diff --git a/gcc/testsuite/gcc.dg/ssp-1.c b/gcc/testsuite/gcc.dg/ssp-1.c
+index db693327f701..74cdb96049c9 100644
+--- a/gcc/testsuite/gcc.dg/ssp-1.c
++++ b/gcc/testsuite/gcc.dg/ssp-1.c
+@@ -1,4 +1,4 @@
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-options "-fstack-protector" } */
+ /* { dg-require-effective-target fstack_protector } */
+ 
+diff --git a/gcc/testsuite/gcc.dg/ssp-2.c b/gcc/testsuite/gcc.dg/ssp-2.c
+index 608ca3000323..22f31d994081 100644
+--- a/gcc/testsuite/gcc.dg/ssp-2.c
++++ b/gcc/testsuite/gcc.dg/ssp-2.c
+@@ -1,4 +1,4 @@
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-options "-fstack-protector" } */
+ /* { dg-options "-fstack-protector -Wl,-multiply_defined,suppress" { target *-*-darwin* } } */
+ /* { dg-prune-output "-multiply_defined is obsolete" } */
+diff --git a/gcc/testsuite/gcc.dg/stackprotectexplicit1.c b/gcc/testsuite/gcc.dg/stackprotectexplicit1.c
+index 658c297d9f58..bb59b7fadd1f 100644
+--- a/gcc/testsuite/gcc.dg/stackprotectexplicit1.c
++++ b/gcc/testsuite/gcc.dg/stackprotectexplicit1.c
+@@ -1,4 +1,4 @@
+-/* { dg-do run { target native } } */
++/* { dg-do run } */
+ /* { dg-options "-fstack-protector-explicit" } */
+ /* { dg-require-effective-target fstack_protector } */
+ 

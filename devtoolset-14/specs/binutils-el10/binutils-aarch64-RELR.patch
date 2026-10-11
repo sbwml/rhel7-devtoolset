@@ -1,0 +1,3522 @@
+diff -rupN binutils,orig/bfd/elfnn-aarch64.c binutils-2.41/bfd/elfnn-aarch64.c
+--- binutils,orig/bfd/elfnn-aarch64.c	2024-05-31 10:18:02.369948478 +0100
++++ binutils-2.41/bfd/elfnn-aarch64.c	2024-05-31 10:24:13.370523113 +0100
+@@ -2706,6 +2706,19 @@ struct elf_aarch64_link_hash_table
+   /* Used by local STT_GNU_IFUNC symbols.  */
+   htab_t loc_hash_table;
+   void * loc_hash_memory;
++
++  /* Array of relative relocs to be emitted in DT_RELR format.  */
++  bfd_size_type relr_alloc;
++  bfd_size_type relr_count;
++  struct relr_entry
++  {
++    asection *sec;
++    bfd_vma off;
++  } *relr;
++  /* Sorted output addresses of above relative relocs.  */
++  bfd_vma *relr_sorted;
++  /* Layout recomputation count.  */
++  bfd_size_type relr_layout_iter;
+ };
+ 
+ /* Create an entry in an AArch64 ELF linker hash table.  */
+@@ -5974,6 +5987,18 @@ elfNN_aarch64_final_link_relocate (reloc
+ 		       || !(bfd_link_pie (info) || SYMBOLIC_BIND (info, h))
+ 		       || !h->def_regular))
+ 	    outrel.r_info = ELFNN_R_INFO (h->dynindx, r_type);
++	  else if (info->enable_dt_relr
++		   && input_section->alignment_power != 0
++		   && rel->r_offset % 2 == 0)
++	    {
++	      /* Don't emit a relative relocation that is packed, only
++		 apply the addend.  */
++	      if (globals->no_apply_dynamic_relocs)
++		return bfd_reloc_ok;
++	      return _bfd_final_link_relocate (howto, input_bfd, input_section,
++					       contents, rel->r_offset, value,
++					       signed_addend);
++	    }
+ 	  else
+ 	    {
+ 	      int symbol;
+@@ -6240,7 +6265,8 @@ elfNN_aarch64_final_link_relocate (reloc
+ 						     addend, weak_undef_p);
+       }
+ 
+-      if (relative_reloc)
++      /* Emit relative relocations, but not if they are packed (DT_RELR).  */
++      if (relative_reloc && !info->enable_dt_relr)
+ 	{
+ 	  asection *s;
+ 	  Elf_Internal_Rela outrel;
+@@ -9172,6 +9198,363 @@ elfNN_aarch64_allocate_local_ifunc_dynre
+   return elfNN_aarch64_allocate_ifunc_dynrelocs (h, inf);
+ }
+ 
++/* Record a relative relocation that will be emitted packed (DT_RELR).
++   Called after relocation sections are sized, so undo the size accounting
++   for this relocation.  */
++
++static bool
++record_relr (struct elf_aarch64_link_hash_table *htab, asection *sec,
++	     bfd_vma off, asection *sreloc)
++{
++  /* Undo the relocation section size accounting.  */
++  BFD_ASSERT (sreloc->size >= RELOC_SIZE (htab));
++  sreloc->size -= RELOC_SIZE (htab);
++  /* The packing format uses the last bit of the address so that
++     must be aligned.  We don't pack relocations that may not be
++     aligned even though the final output address could end up
++     aligned, to avoid complex sizing logic for a rare case.  */
++  BFD_ASSERT (off % 2 == 0 && sec->alignment_power > 0);
++  if (htab->relr_count >= htab->relr_alloc)
++    {
++      if (htab->relr_alloc == 0)
++	htab->relr_alloc = 4096;
++      else
++	htab->relr_alloc *= 2;
++      htab->relr = bfd_realloc (htab->relr,
++				htab->relr_alloc * sizeof (*htab->relr));
++      if (htab->relr == NULL)
++	return false;
++    }
++  htab->relr[htab->relr_count].sec = sec;
++  htab->relr[htab->relr_count].off = off;
++  htab->relr_count++;
++  return true;
++}
++
++/* Follow elfNN_aarch64_allocate_dynrelocs, but only record relative
++   relocations against the GOT and undo their previous size accounting.  */
++
++static bool
++record_relr_dyn_got_relocs (struct elf_link_hash_entry *h, void *inf)
++{
++
++  if (h->root.type == bfd_link_hash_indirect)
++    return true;
++  if (h->root.type == bfd_link_hash_warning)
++    h = (struct elf_link_hash_entry *) h->root.u.i.link;
++  if (h->type == STT_GNU_IFUNC && h->def_regular)
++    return true;
++  if (h->got.refcount <= 0)
++    return true;
++  if (elf_aarch64_hash_entry (h)->got_type != GOT_NORMAL)
++    return true;
++
++  struct bfd_link_info *info = (struct bfd_link_info *) inf;
++  struct elf_aarch64_link_hash_table *htab = elf_aarch64_hash_table (info);
++
++  if ((ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
++       || h->root.type != bfd_link_hash_undefweak)
++      && bfd_link_pic (info)
++      /* Undefined weak symbol in static PIE resolves to 0 without
++	 any dynamic relocations.  */
++      && !UNDEFWEAK_NO_DYNAMIC_RELOC (info, h))
++    {
++      bool relative_reloc = SYMBOL_REFERENCES_LOCAL (info, h)
++			    && !bfd_is_abs_symbol (&h->root);
++      if (relative_reloc)
++	if (!record_relr (htab, htab->root.sgot, h->got.offset,
++			  htab->root.srelgot))
++	  return false;
++    }
++  return true;
++}
++
++/* Record packed relative relocs against the GOT for local symbols.
++   Undo the size accounting of elfNN_aarch64_late_size_sections.  */
++
++static bool
++record_relr_local_got_relocs (bfd *input_bfd, struct bfd_link_info *info)
++{
++  struct elf_aarch64_local_symbol *locals;
++  Elf_Internal_Shdr *symtab_hdr;
++  struct elf_aarch64_link_hash_table *htab;
++
++  if (!bfd_link_pic (info))
++    return true;
++
++  locals = elf_aarch64_locals (input_bfd);
++  if (locals == NULL)
++    return true;
++
++  symtab_hdr = &elf_symtab_hdr (input_bfd);
++  htab = elf_aarch64_hash_table (info);
++  for (unsigned int i = 0; i < symtab_hdr->sh_info; i++)
++    {
++      bfd_vma off = locals[i].got_offset;
++      if (locals[i].got_refcount <= 0)
++	continue;
++      if ((locals[i].got_type & GOT_NORMAL) == 0)
++	continue;
++
++      /* FIXME: If the local symbol is in SHN_ABS then emitting
++	 a relative relocation is not correct, but it seems to
++	 be wrong in elfNN_aarch64_final_link_relocate too.  */
++      if (!record_relr (htab, htab->root.sgot, off, htab->root.srelgot))
++	return false;
++    }
++  return true;
++}
++
++/* Follows the logic of elfNN_aarch64_relocate_section to decide which
++   relocations will become relative and possible to pack.  Ignore
++   relocations against the GOT, those are handled separately per-symbol.
++   Undo the size accounting of the packed relocations and record them
++   so the relr section can be sized later.  */
++
++static bool
++record_relr_non_got_relocs (bfd *input_bfd, struct bfd_link_info *info,
++			    asection *sec)
++{
++  const Elf_Internal_Rela *relocs;
++  const Elf_Internal_Rela *rel;
++  const Elf_Internal_Rela *rel_end;
++  asection *sreloc;
++  struct elf_aarch64_link_hash_table *htab;
++  Elf_Internal_Shdr *symtab_hdr;
++  struct elf_link_hash_entry **sym_hashes;
++
++  if (sec->reloc_count == 0)
++    return true;
++  if ((sec->flags & (SEC_RELOC | SEC_ALLOC | SEC_DEBUGGING))
++      != (SEC_RELOC | SEC_ALLOC))
++    return true;
++  if (sec->alignment_power == 0)
++    return true;
++  sreloc = elf_section_data (sec)->sreloc;
++  if (sreloc == NULL)
++    return true;
++  htab = elf_aarch64_hash_table (info);
++  symtab_hdr = &elf_symtab_hdr (input_bfd);
++  sym_hashes = elf_sym_hashes (input_bfd);
++  relocs = _bfd_elf_link_info_read_relocs (input_bfd, info, sec, NULL, NULL,
++					   info->keep_memory);
++  BFD_ASSERT (relocs != NULL);
++  rel_end = relocs + sec->reloc_count;
++  for (rel = relocs; rel < rel_end; rel++)
++    {
++      unsigned int r_symndx = ELFNN_R_SYM (rel->r_info);
++      unsigned int r_type = ELFNN_R_TYPE (rel->r_info);
++
++      bfd_reloc_code_real_type bfd_r_type
++	= elfNN_aarch64_bfd_reloc_from_type (input_bfd, r_type);
++      /* Handle relocs that can become R_AARCH64_RELATIVE,
++	 but not ones against the GOT as those are handled
++	 separately per-symbol.  */
++      if (bfd_r_type != BFD_RELOC_AARCH64_NN)
++	continue;
++      /* Can only pack relocation against an aligned address.  */
++      if (rel->r_offset % 2 != 0)
++	continue;
++
++      struct elf_link_hash_entry *h = NULL;
++      asection *def_sec = NULL;
++      bool resolved_to_zero = false;
++      if (r_symndx < symtab_hdr->sh_info)
++	{
++	  /* A local symbol.  */
++	  Elf_Internal_Sym *isym;
++	  isym = bfd_sym_from_r_symndx (&htab->root.sym_cache,
++					input_bfd, r_symndx);
++	  BFD_ASSERT (isym != NULL);
++	  if (ELF_ST_TYPE (isym->st_info) == STT_GNU_IFUNC)
++	    continue;
++	  def_sec = bfd_section_from_elf_index (input_bfd, isym->st_shndx);
++	}
++      else
++	{
++	  h = sym_hashes[r_symndx - symtab_hdr->sh_info];
++	  while (h->root.type == bfd_link_hash_indirect
++		 || h->root.type == bfd_link_hash_warning)
++	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
++
++	  /* Filter out symbols that cannot have a relative reloc.  */
++	  if (h->dyn_relocs == NULL)
++	    continue;
++	  if (bfd_is_abs_symbol (&h->root))
++	    continue;
++	  if (h->type == STT_GNU_IFUNC)
++	    continue;
++
++	  if (h->root.type == bfd_link_hash_defined
++	      || h->root.type == bfd_link_hash_defweak)
++	    def_sec = h->root.u.def.section;
++	  resolved_to_zero = UNDEFWEAK_NO_DYNAMIC_RELOC (info, h);
++	}
++      if (def_sec != NULL && discarded_section (def_sec))
++	continue;
++      /* Same logic as in elfNN_aarch64_final_link_relocate.
++	 Except conditionals trimmed that cannot result a reltive reloc.  */
++      if (bfd_link_pic (info)
++	  && (h == NULL
++	      || (ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
++		  && !resolved_to_zero)
++	      || h->root.type != bfd_link_hash_undefweak))
++	{
++	  if (h != NULL
++	      && h->dynindx != -1
++	      && (!(bfd_link_pie (info) || SYMBOLIC_BIND (info, h))
++		  || !h->def_regular))
++	    continue;
++	  if (!record_relr (htab, sec, rel->r_offset, sreloc))
++	    return false;
++	}
++    }
++  return true;
++}
++
++static int
++cmp_relr_addr (const void *p, const void *q)
++{
++  const bfd_vma *a = p;
++  const bfd_vma *b = q;
++  return *a < *b ? -1 : *a > *b ? 1 : 0;
++}
++
++/* Produce a malloc'd sorted array of reloc addresses in htab->relr_sorted.
++   Returns false on allocation failure.  */
++
++static bool
++sort_relr (struct bfd_link_info *info,
++	   struct elf_aarch64_link_hash_table *htab)
++{
++  if (htab->relr_count == 0)
++    return true;
++
++  bfd_vma *addr = htab->relr_sorted;
++  if (addr == NULL)
++    {
++      addr = bfd_malloc (htab->relr_count * sizeof (*addr));
++      if (addr == NULL)
++	return false;
++      htab->relr_sorted = addr;
++    }
++
++  for (bfd_size_type i = 0; i < htab->relr_count; i++)
++    {
++      bfd_vma off = _bfd_elf_section_offset (info->output_bfd, info,
++					     htab->relr[i].sec,
++					     htab->relr[i].off);
++      addr[i] = htab->relr[i].sec->output_section->vma
++		+ htab->relr[i].sec->output_offset
++		+ off;
++    }
++  qsort (addr, htab->relr_count, sizeof (*addr), cmp_relr_addr);
++  return true;
++}
++
++/* Size .relr.dyn whenever the layout changes, the number of packed
++   relocs are unchanged but the packed representation can.  */
++
++bool
++elfNN_aarch64_size_relative_relocs (struct bfd_link_info *info,
++				   bool *need_layout)
++{
++  struct elf_aarch64_link_hash_table *htab = elf_aarch64_hash_table (info);
++  asection *srelrdyn = htab->root.srelrdyn;
++  *need_layout = false;
++
++  if (!sort_relr (info, htab))
++    return false;
++  bfd_vma *addr = htab->relr_sorted;
++
++  BFD_ASSERT (srelrdyn != NULL);
++  bfd_size_type oldsize = srelrdyn->size;
++  srelrdyn->size = 0;
++  for (bfd_size_type i = 0; i < htab->relr_count; )
++    {
++      bfd_vma base = addr[i];
++      i++;
++      srelrdyn->size += 8;
++      base += 8;
++      for (;;)
++	{
++	  bfd_size_type start_i = i;
++	  while (i < htab->relr_count
++		 && addr[i] - base < 63 * 8
++		 && (addr[i] - base) % 8 == 0)
++	    i++;
++	  if (i == start_i)
++	    break;
++	  srelrdyn->size += 8;
++	  base += 63 * 8;
++	}
++    }
++  if (srelrdyn->size != oldsize)
++    {
++      *need_layout = true;
++      /* Stop after a few iterations in case the layout does not converge,
++	 we can do this when the size would shrink.  */
++      if (htab->relr_layout_iter++ > 5 && srelrdyn->size < oldsize)
++	{
++	  srelrdyn->size = oldsize;
++	  *need_layout = false;
++	}
++    }
++  return true;
++}
++
++/* Emit the .relr.dyn section after it is sized and the layout is fixed.  */
++
++bool
++elfNN_aarch64_finish_relative_relocs (struct bfd_link_info *info)
++{
++  struct elf_aarch64_link_hash_table *htab = elf_aarch64_hash_table (info);
++  asection *srelrdyn = htab->root.srelrdyn;
++  bfd *dynobj = htab->root.dynobj;
++
++  if (srelrdyn == NULL || srelrdyn->size == 0)
++    return true;
++  srelrdyn->contents = bfd_alloc (dynobj, srelrdyn->size);
++  if (srelrdyn->contents == NULL)
++    return false;
++  bfd_vma *addr = htab->relr_sorted;
++  bfd_byte *loc = srelrdyn->contents;
++  for (bfd_size_type i = 0; i < htab->relr_count; )
++    {
++      bfd_vma base = addr[i];
++      i++;
++      bfd_put_64 (dynobj, base, loc);
++      loc += 8;
++      base += 8;
++      for (;;)
++	{
++	  bfd_vma bits = 0;
++	  while (i < htab->relr_count)
++	    {
++	      bfd_vma delta = addr[i] - base;
++	      if (delta >= 63 * 8 || delta % 8 != 0)
++		break;
++	      bits |= (bfd_vma) 1 << (delta / 8);
++	      i++;
++	    }
++	  if (bits == 0)
++	    break;
++	  bfd_put_64 (dynobj, (bits << 1) | 1, loc);
++	  loc += 8;
++	  base += 63 * 8;
++	}
++    }
++  free (addr);
++  htab->relr_sorted = NULL;
++  /* Pad any excess with 1's, a do-nothing encoding.  */
++  while (loc < srelrdyn->contents + srelrdyn->size)
++    {
++      bfd_put_64 (dynobj, 1, loc);
++      loc += 8;
++    }
++  return true;
++}
++
+ /* This is the most important function of all . Innocuosly named
+    though !  */
+ 
+@@ -9346,6 +9729,27 @@ elfNN_aarch64_size_dynamic_sections (bfd
+ 	}
+     }
+ 
++  /* Record the relative relocations that will be packed and undo the
++     size allocation for them in .rela.*. The size of .relr.dyn will be
++     computed later iteratively since it depends on the final layout.  */
++  if (info->enable_dt_relr && !bfd_link_relocatable (info))
++    {
++      elf_link_hash_traverse (&htab->root, record_relr_dyn_got_relocs, info);
++
++      for (ibfd = info->input_bfds; ibfd != NULL; ibfd = ibfd->link.next)
++	{
++	  if (!is_aarch64_elf (ibfd))
++	    continue;
++
++	  for (s = ibfd->sections; s != NULL; s = s->next)
++	    if (!record_relr_non_got_relocs (ibfd, info, s))
++	      return false;
++
++	  if (!record_relr_local_got_relocs (ibfd, info))
++	    return false;
++	}
++    }
++
+   /* Init mapping symbols information to use later to distingush between
+      code and data while scanning for errata.  */
+   if (htab->fix_erratum_835769 || htab->fix_erratum_843419)
+@@ -9385,6 +9789,19 @@ elfNN_aarch64_size_dynamic_sections (bfd
+ 	  if (s != htab->root.srelplt)
+ 	    s->reloc_count = 0;
+ 	}
++      else if (s == htab->root.srelrdyn)
++	{
++	  /* Remove .relr.dyn based on relr_count, not size, since
++	     it is not sized yet.  */
++	  if (htab->relr_count == 0)
++	    s->flags |= SEC_EXCLUDE;
++	  else
++	    /* Force dynamic tags for relocs even if there are no
++	       .rela* relocs, required for setting DT_TEXTREL.  */
++	    relocs = true;
++	  /* Allocate contents later.  */
++	  continue;
++	}
+       else
+ 	{
+ 	  /* It's not one of our sections, so don't allocate space.  */
+@@ -9744,6 +10161,9 @@ elfNN_aarch64_finish_dynamic_symbol (bfd
+ 	    return false;
+ 
+ 	  BFD_ASSERT ((h->got.offset & 1) != 0);
++	  /* Don't emit relative relocs if they are packed.  */
++	  if (info->enable_dt_relr)
++	    goto skip_got_reloc;
+ 	  rela.r_info = ELFNN_R_INFO (0, AARCH64_R (RELATIVE));
+ 	  rela.r_addend = (h->root.u.def.value
+ 			   + h->root.u.def.section->output_section->vma
+@@ -9763,6 +10183,7 @@ elfNN_aarch64_finish_dynamic_symbol (bfd
+       loc += htab->root.srelgot->reloc_count++ * RELOC_SIZE (htab);
+       bfd_elfNN_swap_reloca_out (output_bfd, &rela, loc);
+     }
++skip_got_reloc:
+ 
+   if (h->needs_copy)
+     {
+@@ -10398,6 +10819,12 @@ const struct elf_size_info elfNN_aarch64
+ #define elf_backend_merge_gnu_properties	\
+   elfNN_aarch64_merge_gnu_properties
+ 
++#define elf_backend_size_relative_relocs	\
++  elfNN_aarch64_size_relative_relocs
++
++#define elf_backend_finish_relative_relocs	\
++  elfNN_aarch64_finish_relative_relocs
++
+ #define elf_backend_can_refcount       1
+ #define elf_backend_can_gc_sections    1
+ #define elf_backend_plt_readonly       1
+diff -rupN binutils,orig/bfd/elfxx-aarch64.h binutils-2.41/bfd/elfxx-aarch64.h
+--- binutils,orig/bfd/elfxx-aarch64.h	2024-05-31 10:18:02.127948130 +0100
++++ binutils-2.41/bfd/elfxx-aarch64.h	2024-05-31 10:24:13.371523114 +0100
+@@ -96,6 +96,17 @@ extern bool elf32_aarch64_size_stubs
+ extern bool elf32_aarch64_build_stubs
+   (struct bfd_link_info *);
+ 
++/* AArch64 relative relocation packing support for ELF64.  */
++extern bool elf64_aarch64_size_relative_relocs
++  (struct bfd_link_info *, bool *);
++extern bool elf64_aarch64_finish_relative_relocs
++  (struct bfd_link_info *);
++/* AArch64 relative relocation packing support for ELF32.  */
++extern bool elf32_aarch64_size_relative_relocs
++  (struct bfd_link_info *, bool *);
++extern bool elf32_aarch64_finish_relative_relocs
++  (struct bfd_link_info *);
++
+ /* Take the PAGE component of an address or offset.  */
+ #define PG(x)	     ((x) & ~ (bfd_vma) 0xfff)
+ #define PG_OFFSET(x) ((x) &   (bfd_vma) 0xfff)
+diff -rupN binutils,orig/binutils/readelf.c binutils-2.41/binutils/readelf.c
+--- binutils,orig/binutils/readelf.c	2024-05-31 10:18:02.711948969 +0100
++++ binutils-2.41/binutils/readelf.c	2024-05-31 10:39:08.921193160 +0100
+@@ -332,6 +332,7 @@ typedef enum print_mode
+   PREFIX_HEX_5,
+   FULL_HEX,
+   LONG_HEX,
++  ZERO_HEX,
+   OCTAL,
+   OCTAL_5
+ }
+@@ -569,6 +570,11 @@ print_vma (uint64_t vma, print_mode mode
+ 	return nc + printf ("%16.16" PRIx64, vma);
+       return nc + printf ("%8.8" PRIx64, vma);
+ 
++    case ZERO_HEX:
++      if (is_32bit_elf)
++	return printf ("%08" PRIx64, vma);
++      return printf ("%016" PRIx64, vma);
++      
+     case DEC_5:
+       if (vma <= 99999)
+ 	return printf ("%5" PRId64, vma);
+@@ -987,6 +993,26 @@ find_section_by_type (Filedata * filedat
+   return NULL;
+ }
+ 
++static Elf_Internal_Shdr *
++find_section_by_name (Filedata * filedata, const char * name)
++{
++  unsigned int i;
++
++  if (filedata->section_headers == NULL || filedata->string_table_length == 0)
++    return NULL;
++
++  for (i = 0; i < filedata->file_header.e_shnum; i++)
++    {
++      Elf_Internal_Shdr *sec = filedata->section_headers + i;
++
++      if (sec->sh_name < filedata->string_table_length
++	  && streq (name, filedata->string_table + sec->sh_name))
++	return sec;
++    }
++
++  return NULL;
++}
++
+ /* Return a pointer to section NAME, or NULL if no such section exists,
+    restricted to the list of sections given in SET.  */
+ 
+@@ -1353,76 +1379,6 @@ slurp_rel_relocs (Filedata *filedata,
+   return true;
+ }
+ 
+-static bool
+-slurp_relr_relocs (Filedata *filedata,
+-		   uint64_t relr_offset,
+-		   uint64_t relr_size,
+-		   uint64_t **relrsp,
+-		   uint64_t *nrelrsp)
+-{
+-  void *relrs;
+-  size_t size = 0, nentries, i;
+-  uint64_t base = 0, addr, entry;
+-
+-  relrs = get_data (NULL, filedata, relr_offset, 1, relr_size,
+-		    _("RELR relocation data"));
+-  if (!relrs)
+-    return false;
+-
+-  if (is_32bit_elf)
+-    nentries = relr_size / sizeof (Elf32_External_Relr);
+-  else
+-    nentries = relr_size / sizeof (Elf64_External_Relr);
+-  for (i = 0; i < nentries; i++)
+-    {
+-      if (is_32bit_elf)
+-	entry = BYTE_GET (((Elf32_External_Relr *)relrs)[i].r_data);
+-      else
+-	entry = BYTE_GET (((Elf64_External_Relr *)relrs)[i].r_data);
+-      if ((entry & 1) == 0)
+-	size++;
+-      else
+-	while ((entry >>= 1) != 0)
+-	  if ((entry & 1) == 1)
+-	    size++;
+-    }
+-
+-  *relrsp = malloc (size * sizeof (**relrsp));
+-  if (*relrsp == NULL)
+-    {
+-      free (relrs);
+-      error (_("out of memory parsing relocs\n"));
+-      return false;
+-    }
+-
+-  size = 0;
+-  for (i = 0; i < nentries; i++)
+-    {
+-      const uint64_t entry_bytes = is_32bit_elf ? 4 : 8;
+-
+-      if (is_32bit_elf)
+-	entry = BYTE_GET (((Elf32_External_Relr *)relrs)[i].r_data);
+-      else
+-	entry = BYTE_GET (((Elf64_External_Relr *)relrs)[i].r_data);
+-      if ((entry & 1) == 0)
+-	{
+-	  (*relrsp)[size++] = entry;
+-	  base = entry + entry_bytes;
+-	}
+-      else
+-	{
+-	  for (addr = base; (entry >>= 1) != 0; addr += entry_bytes)
+-	    if ((entry & 1) != 0)
+-	      (*relrsp)[size++] = addr;
+-	  base += entry_bytes * (entry_bytes * CHAR_BIT - 1);
+-	}
+-    }
+-
+-  *nrelrsp = size;
+-  free (relrs);
+-  return true;
+-}
+-
+ /* Returns the reloc type extracted from the reloc info field.  */
+ 
+ static unsigned int
+@@ -1464,6 +1420,399 @@ uses_msp430x_relocs (Filedata * filedata
+ 	|| (filedata->file_header.e_ident[EI_OSABI] == ELFOSABI_NONE));
+ }
+ 
++static const char *
++get_symbol_at (Filedata *          filedata,
++	       Elf_Internal_Sym *  symtab,
++	       uint64_t            nsyms,
++	       char *              strtab,
++	       uint64_t            where,
++	       uint64_t *          offset_return)
++{
++  Elf_Internal_Sym *  beg = symtab;
++  Elf_Internal_Sym *  end = symtab + nsyms;
++  Elf_Internal_Sym *  best = NULL;
++  uint64_t            dist = 0x100000;
++
++  /* FIXME: Since this function is likely to be called repeatedly with
++     slightly increasing addresses each time, we could speed things up by
++     caching the last returned value and starting our search from there.  */
++  while (beg < end)
++    {
++      Elf_Internal_Sym *  sym;
++      uint64_t            value;
++
++      sym = beg + (end - beg) / 2;
++
++      value = sym->st_value;
++
++      if (where >= value
++	  && where - value < dist)
++	{
++	  best = sym;
++	  dist = where - value;
++	  if (dist == 0)
++	    break;
++	}
++
++      if (where < value)
++	end = sym;
++      else
++	beg = sym + 1;
++    }
++
++  const char *name;
++
++  /* If there is a section start closer than the found symbol then
++     use that for symbolizing the address.  */
++  Elf_Internal_Shdr *sec = find_section_by_address (filedata, where);
++  if (sec != NULL
++      && where - sec->sh_addr < dist
++      && section_name_valid (filedata, sec))
++    {
++      name = section_name (filedata, sec);
++      dist = where - sec->sh_addr;
++    }
++  else if (best != NULL)
++    name = strtab + best->st_name;
++  else
++    return NULL;
++
++  if (offset_return != NULL)
++    * offset_return = dist;
++
++  return name;
++}
++
++static void
++print_relr_addr_and_sym (Filedata *          filedata,
++			 Elf_Internal_Sym *  symtab,
++			 uint64_t            nsyms,
++			 char *              strtab,
++			 uint64_t            where)
++{
++  const char * symname = NULL;
++  uint64_t     offset = 0;
++
++  print_vma (where, ZERO_HEX);
++  printf ("  ");
++
++  symname = get_symbol_at (filedata, symtab, nsyms, strtab, where, & offset);
++
++  if (symname == NULL)
++    printf ("<no sym>");
++  else if (offset == 0)
++    print_symbol (38, symname);
++  else
++    {
++      print_symbol (28, symname);
++      printf (" + ");
++      print_vma (offset, PREFIX_HEX);
++    }
++}
++
++/* See bfd_is_aarch64_special_symbol_name.  */
++
++static bool
++is_aarch64_special_symbol_name (const char *name)
++{
++  if (!name || name[0] != '$')
++    return false;
++  if (name[1] == 'x' || name[1] == 'd')
++    /* Map.  */;
++  else if (name[1] == 'm' || name[1] == 'f' || name[1] == 'p')
++    /* Tag.  */;
++  else
++    return false;
++  return name[2] == 0 || name[2] == '.';
++}
++
++static bool
++is_special_symbol_name (Filedata * filedata, const char * s)
++{
++  switch (filedata->file_header.e_machine)
++    {
++    case EM_AARCH64:
++      return is_aarch64_special_symbol_name (s);
++
++    default:
++      return false;
++    }
++}
++
++/* Allows selecting the best symbol from a set for displaying addresses.
++   BEST is the current best or NULL if there are no good symbols yet.
++   SYM is the next symbol to consider, if it is better than BEST then
++   return SYM else return BEST.  */
++
++static Elf_Internal_Sym *
++select_display_sym (Filedata *         filedata,
++		    char *             strtab,
++		    uint64_t           strtablen,
++		    Elf_Internal_Sym * best,
++		    Elf_Internal_Sym * sym)
++{
++  /* Ignore empty or invalid syms.  */
++  if (sym->st_name == 0)
++    return best;
++  if (sym->st_name >= strtablen)
++    return best;
++  /* Ignore undefined or TLS syms.  */
++  if (sym->st_shndx == SHN_UNDEF)
++    return best;
++  if (ELF_ST_TYPE (sym->st_info) == STT_TLS)
++    return best;
++
++  char *s = strtab + sym->st_name;
++
++  /* Don't display special symbols.  */
++  if (is_special_symbol_name (filedata, s))
++    return best;
++
++  /* Here SYM is good for display.  */
++
++  if (best == NULL)
++    return sym;
++
++  char *sbest = strtab + best->st_name;
++
++  /* Prefer non-local symbols.  */
++  if (ELF_ST_BIND (sym->st_info) == STB_LOCAL
++      && ELF_ST_BIND (best->st_info) != STB_LOCAL)
++    return best;
++  if (ELF_ST_BIND (sym->st_info) != STB_LOCAL
++      && ELF_ST_BIND (best->st_info) == STB_LOCAL)
++    return sym;
++
++  /* Select based on lexicographic order. */
++  return strcmp (s, sbest) < 0 ? sym : best;
++}
++
++/* Filter the sorted SYMTAB symbol array in-place to select at most one
++   symbol for an address and drop symbols that are not good to display.
++   Returns the new array length.  */
++
++static uint64_t
++filter_display_syms (Filedata *         filedata,
++		     Elf_Internal_Sym * symtab,
++		     uint64_t           nsyms,
++		     char *             strtab,
++		     uint64_t           strtablen)
++{
++  Elf_Internal_Sym *r = symtab;
++  Elf_Internal_Sym *w = symtab;
++  Elf_Internal_Sym *best = NULL;
++  Elf_Internal_Sym *end = symtab + nsyms;
++  while (r < end)
++    {
++      /* Select the best symbol for an address.  */
++      while (r < end
++	     && (best == NULL || best->st_value == r->st_value))
++	{
++	  best = select_display_sym (filedata, strtab, strtablen, best, r);
++	  r++;
++	}
++      if (best != NULL)
++	{
++	  *w = *best;
++	  w++;
++	  best = NULL;
++	}
++    }
++  return w - symtab;
++}
++
++static /* signed */ int
++symcmp (const void *p, const void *q)
++{
++  Elf_Internal_Sym *sp = (Elf_Internal_Sym *) p;
++  Elf_Internal_Sym *sq = (Elf_Internal_Sym *) q;
++
++  return sp->st_value > sq->st_value ? 1 : (sp->st_value < sq->st_value ? -1 : 0);
++}
++
++static uint64_t
++count_relr_relocations (Filedata *          filedata,
++			Elf_Internal_Shdr * section)
++{
++  uint64_t *  relrs;
++  uint64_t    nentries;
++  uint64_t    i;
++  uint64_t    count;
++  int         entsize;
++
++  if (section == NULL
++      || section->sh_type != SHT_RELR
++      || section->sh_size == 0)
++    return 0;
++
++  entsize = section->sh_entsize;
++  if (entsize == 0)
++    entsize = is_32bit_elf
++      ? sizeof (Elf32_External_Relr) : sizeof (Elf64_External_Relr);
++  else if (entsize != sizeof (Elf32_External_Relr)
++	   && entsize != sizeof (Elf64_External_Relr))
++    return 0;
++
++  nentries = section->sh_size / entsize;
++  if (nentries == 0)
++    return 0;
++  
++  /* FIXME: This call to get_data duplicates one that follows in
++     dump_relr_relocations().  They could be combined into just
++     one call.  */
++  relrs = get_data (NULL, filedata, section->sh_offset, 1,
++		    section->sh_size, _("RELR relocation data"));
++  if (relrs == NULL)
++    return 0;
++
++  for (count = i = 0; i < nentries; i++)
++    {
++      uint64_t entry;
++
++      if (entsize == sizeof (Elf32_External_Relr))
++	entry = BYTE_GET (((Elf32_External_Relr *)relrs)[i].r_data);
++      else
++	entry = BYTE_GET (((Elf64_External_Relr *)relrs)[i].r_data);
++
++      if ((entry & 1) == 0)
++	{
++	  ++ count;
++	}
++      else
++	{
++	  if (entry == 1)
++	    continue;
++
++	  for (; entry >>= 1;)
++	    if ((entry & 1) == 1)
++	      ++ count;
++	}
++    }
++
++  free (relrs);
++  return count;
++}
++
++static bool
++dump_relr_relocations (Filedata *          filedata,
++		       Elf_Internal_Shdr * section,
++		       Elf_Internal_Sym *  symtab,
++		       uint64_t            nsyms,
++		       char *              strtab,
++		       uint64_t            strtablen)
++{
++  uint64_t *  relrs;
++  uint64_t    nentries, i;
++  uint64_t    relr_size = section->sh_size;
++  int         relr_entsize = section->sh_entsize;
++  uint64_t    relr_offset = section->sh_offset;
++  uint64_t    where = 0;
++  int         num_bits_in_entry;
++
++  if (relr_entsize == 0)
++    relr_entsize = is_32bit_elf
++      ? sizeof (Elf32_External_Relr) : sizeof (Elf64_External_Relr);
++
++  nentries = relr_size / relr_entsize;
++
++  if (nentries == 0)
++    return true;
++
++  if (relr_entsize == sizeof (Elf32_External_Relr))
++    num_bits_in_entry = 31;
++  else if (relr_entsize == sizeof (Elf64_External_Relr))
++    num_bits_in_entry = 63;
++  else
++    {
++      warn (_("Unexpected entsize for RELR section\n"));
++      return false;
++    }
++
++  relrs = get_data (NULL, filedata, relr_offset, 1, relr_size, _("RELR relocation data"));
++  if (relrs == NULL)
++    return false;
++
++  /* Paranoia.  */
++  if (strtab == NULL)
++    strtablen = 0;
++  if (symtab == NULL)
++    nsyms = 0;
++
++  if (symtab != NULL)
++    {
++      /* Symbol tables are not sorted on address, but we want a quick lookup
++	 for the symbol associated with each address computed below, so sort
++	 the table then filter out unwanted entries. FIXME: This assumes that
++	 the symbol table will not be used later on for some other purpose.  */
++      qsort (symtab, nsyms, sizeof (Elf_Internal_Sym), symcmp);
++      nsyms = filter_display_syms (filedata, symtab, nsyms, strtab, strtablen);
++    }
++
++  if (relr_entsize == sizeof (Elf32_External_Relr))
++    printf (_ ("Index: Entry    Address   Symbolic Address\n"));
++  else
++    printf (_ ("Index: Entry            Address           Symbolic Address\n"));
++
++  for (i = 0; i < nentries; i++)
++    {
++      uint64_t entry;
++
++      if (relr_entsize == sizeof (Elf32_External_Relr))
++	entry = BYTE_GET (((Elf32_External_Relr *)relrs)[i].r_data);
++      else
++	entry = BYTE_GET (((Elf64_External_Relr *)relrs)[i].r_data);
++
++      /* We assume that there will never be more than 9999 entries.  */
++      printf (_("%04u:  "), (unsigned int) i);
++      print_vma (entry, ZERO_HEX);
++      printf (" ");
++
++      if ((entry & 1) == 0)
++	{
++	  where = entry;
++	  print_relr_addr_and_sym (filedata, symtab, nsyms, strtab, where);
++	  printf ("\n");
++	  where += relr_entsize;
++	}
++      else
++	{
++	  bool first = true;
++	  int j;
++
++	  /* The least significant bit is ignored.  */
++	  if (entry == 1)
++	    /* This can actually happen when the linker is allowed to shrink
++	       RELR sections.  For more details see: https://reviews.llvm.org/D67164. */
++	    continue;
++	  else if (i == 0)
++	    warn (_("Unusual RELR bitmap - no previous entry to set the base address\n"));
++
++	  for (j = 0; entry >>= 1; j++)
++	    if ((entry & 1) == 1)
++	      {
++		uint64_t addr = where + (j * relr_entsize);
++		
++		if (first)
++		  {
++		    print_relr_addr_and_sym (filedata, symtab, nsyms, strtab, addr);
++		    first = false;
++		  }
++		else
++		  {
++		    printf (_("\n%*s "), relr_entsize == 4 ? 15 : 23, " ");
++		    print_relr_addr_and_sym (filedata, symtab, nsyms, strtab, addr);
++		  }
++	      }
++
++	  printf ("\n");
++	  where += num_bits_in_entry * relr_entsize;
++	}
++    }
++
++  free (relrs);
++  return true;
++}
++		       
+ /* Display the contents of the relocation data found at the specified
+    offset.  */
+ 
+@@ -1497,21 +1846,8 @@ dump_relocations (Filedata *filedata,
+     }
+   else if (rel_type == reltype_relr)
+     {
+-      uint64_t * relrs;
+-      const char *format
+-	= is_32bit_elf ? "%08" PRIx64 "\n" : "%016" PRIx64 "\n";
+-
+-      if (!slurp_relr_relocs (filedata, rel_offset, rel_size, &relrs,
+-			      &rel_size))
+-	return false;
+-
+-      printf (ngettext ("  %" PRIu64 " offset\n",
+-			"  %" PRIu64 " offsets\n", rel_size),
+-	      rel_size);
+-      for (i = 0; i < rel_size; i++)
+-	printf (format, relrs[i]);
+-      free (relrs);
+-      return true;
++      /* This should have been handled by display_relocations().  */
++      return false;
+     }
+ 
+   if (is_32bit_elf)
+@@ -2790,7 +3126,7 @@ get_machine_name (unsigned e_machine)
+     case EM_MMA:		return "Fujitsu Multimedia Accelerator";
+     case EM_PCP:		return "Siemens PCP";
+     case EM_NCPU:		return "Sony nCPU embedded RISC processor";
+-    case EM_NDR1:		return "Denso NDR1 microprocesspr";
++    case EM_NDR1:		return "Denso NDR1 microprocessor";
+     case EM_STARCORE:		return "Motorola Star*Core processor";
+     case EM_ME16:		return "Toyota ME16 processor";
+       /* 60 */
+@@ -8403,6 +8739,115 @@ static struct
+   { "PLT", DT_JMPREL, DT_PLTRELSZ, reltype_unknown }
+ };
+ 
++static relocation_type
++rel_type_from_sh_type (unsigned int sh_type)
++{
++  switch (sh_type)
++    {
++    case SHT_RELA: return reltype_rela;
++    case SHT_REL:  return reltype_rel;
++    case SHT_RELR: return reltype_relr;
++    default:       return reltype_unknown;
++    }
++}
++
++static bool
++display_relocations (Elf_Internal_Shdr *  section,
++		     Filedata *           filedata)
++{
++  relocation_type rel_type = rel_type_from_sh_type (section->sh_type);
++
++  if (rel_type == reltype_unknown)
++    return false;
++
++  uint64_t rel_size = section->sh_size;
++
++  if (rel_size == 0)
++    return false;
++
++  if (filedata->is_separate)
++    printf (_("\nIn linked file '%s' relocation section "),
++	    filedata->file_name);
++  else
++    printf (_("\nRelocation section "));
++
++  if (filedata->string_table == NULL)
++    printf ("%d", section->sh_name);
++  else
++    printf ("'%s'", printable_section_name (filedata, section));
++
++  uint64_t num_rela = rel_size / section->sh_entsize;
++  uint64_t rel_offset = section->sh_offset;
++
++  if (rel_type == reltype_relr)
++    {
++      /* Just stating the 'number of entries' in a RELR section can be
++	 misleading, since this is not the number of locations relocated, but
++	 the number of words in the compressed RELR format.  So also provide
++	 the number of locations affected.  */
++      if (num_rela == 1)
++	/* This is unlikely, but possible.  */
++	printf (_(" at offset %#" PRIx64
++		  " contains 1 entry which relocates 1 location:\n"),
++		rel_offset);
++      else
++	printf (_(" at offset %#" PRIx64 " contains %" PRIu64
++		  " entries which relocate %" PRIu64 " locations:\n"),
++		rel_offset, num_rela, count_relr_relocations (filedata, section));
++    }
++  else
++    {
++      printf (ngettext (" at offset %#" PRIx64
++			" contains %" PRIu64 " entry:\n",
++			" at offset %#" PRIx64
++			" contains %" PRIu64 " entries:\n",
++			num_rela),
++	      rel_offset, num_rela);
++    }
++
++  Elf_Internal_Shdr * symsec;
++  Elf_Internal_Sym *  symtab = NULL;
++  uint64_t            nsyms = 0;
++  uint64_t            strtablen = 0;
++  char *              strtab = NULL;
++
++  if (section->sh_link == 0
++      || section->sh_link >= filedata->file_header.e_shnum)
++    {
++      /* Symbol data not available.
++	 This can happen, especially with RELR relocs.
++	 See if there is a .symtab section present.
++	 If so then use it.  */
++      symsec = find_section_by_name (filedata, ".symtab");
++    }
++  else
++    {
++      symsec = filedata->section_headers + section->sh_link;
++
++      if (symsec->sh_type != SHT_SYMTAB
++	  && symsec->sh_type != SHT_DYNSYM)
++	return false;
++    }
++
++  if (symsec != NULL
++      && !get_symtab (filedata, symsec, &symtab, &nsyms, &strtab, &strtablen))
++    return false;
++
++  bool res;
++
++  if (rel_type == reltype_relr)
++    res = dump_relr_relocations (filedata, section, symtab, nsyms, strtab, strtablen);
++  else
++    res = dump_relocations (filedata, rel_offset, rel_size,
++			    symtab, nsyms, strtab, strtablen,
++			    rel_type,
++			    symsec == NULL ? false : symsec->sh_type == SHT_DYNSYM);
++  free (strtab);
++  free (symtab);
++
++  return res;
++}
++
+ /* Process the reloc section.  */
+ 
+ static bool
+@@ -8494,72 +8939,8 @@ process_relocs (Filedata * filedata)
+ 	   i < filedata->file_header.e_shnum;
+ 	   i++, section++)
+ 	{
+-	  if (   section->sh_type != SHT_RELA
+-	      && section->sh_type != SHT_REL
+-	      && section->sh_type != SHT_RELR)
+-	    continue;
+-
+-	  rel_offset = section->sh_offset;
+-	  rel_size   = section->sh_size;
+-
+-	  if (rel_size)
+-	    {
+-	      relocation_type rel_type;
+-	      uint64_t num_rela;
+-
+-	      if (filedata->is_separate)
+-		printf (_("\nIn linked file '%s' relocation section "),
+-			filedata->file_name);
+-	      else
+-		printf (_("\nRelocation section "));
+-
+-	      if (filedata->string_table == NULL)
+-		printf ("%d", section->sh_name);
+-	      else
+-		printf ("'%s'", printable_section_name (filedata, section));
+-
+-	      num_rela = rel_size / section->sh_entsize;
+-	      printf (ngettext (" at offset %#" PRIx64
+-				" contains %" PRIu64 " entry:\n",
+-				" at offset %#" PRIx64
+-				" contains %" PRId64 " entries:\n",
+-				num_rela),
+-		      rel_offset, num_rela);
+-
+-	      rel_type = section->sh_type == SHT_RELA ? reltype_rela :
+-		section->sh_type == SHT_REL ? reltype_rel : reltype_relr;
+-
+-	      if (section->sh_link != 0
+-		  && section->sh_link < filedata->file_header.e_shnum)
+-		{
+-		  Elf_Internal_Shdr *symsec;
+-		  Elf_Internal_Sym *symtab;
+-		  uint64_t nsyms;
+-		  uint64_t strtablen = 0;
+-		  char *strtab = NULL;
+-
+-		  symsec = filedata->section_headers + section->sh_link;
+-		  if (symsec->sh_type != SHT_SYMTAB
+-		      && symsec->sh_type != SHT_DYNSYM)
+-                    continue;
+-
+-		  if (!get_symtab (filedata, symsec,
+-				   &symtab, &nsyms, &strtab, &strtablen))
+-		    continue;
+-
+-		  dump_relocations (filedata, rel_offset, rel_size,
+-				    symtab, nsyms, strtab, strtablen,
+-				    rel_type,
+-				    symsec->sh_type == SHT_DYNSYM);
+-		  free (strtab);
+-		  free (symtab);
+-		}
+-	      else
+-		dump_relocations (filedata, rel_offset, rel_size,
+-				  NULL, 0, NULL, 0, rel_type, false /* is_dynamic */);
+-
+-	      found = true;
+-	    }
++	  if (display_relocations (section, filedata))
++	    found = true;
+ 	}
+ 
+       if (! found)
+@@ -8664,15 +9045,6 @@ find_symbol_for_address (Filedata *filed
+   *offset = addr.offset;
+ }
+ 
+-static /* signed */ int
+-symcmp (const void *p, const void *q)
+-{
+-  Elf_Internal_Sym *sp = (Elf_Internal_Sym *) p;
+-  Elf_Internal_Sym *sq = (Elf_Internal_Sym *) q;
+-
+-  return sp->st_value > sq->st_value ? 1 : (sp->st_value < sq->st_value ? -1 : 0);
+-}
+-
+ /* Process the unwind section.  */
+ 
+ #include "unwind-ia64.h"
+diff -rupN binutils,orig/ld/emulparams/aarch64elf.sh binutils-2.41/ld/emulparams/aarch64elf.sh
+--- binutils,orig/ld/emulparams/aarch64elf.sh	2024-05-31 10:18:04.488951522 +0100
++++ binutils-2.41/ld/emulparams/aarch64elf.sh	2024-05-31 10:24:13.371523114 +0100
+@@ -1,3 +1,5 @@
++source_sh ${srcdir}/emulparams/dt-relr.sh
++
+ ARCH=aarch64
+ MACHINE=
+ NOP=0x1f2003d5
+diff -rupN binutils,orig/ld/emulparams/aarch64fbsd.sh binutils-2.41/ld/emulparams/aarch64fbsd.sh
+--- binutils,orig/ld/emulparams/aarch64fbsd.sh	2024-05-31 10:18:04.488951522 +0100
++++ binutils-2.41/ld/emulparams/aarch64fbsd.sh	2024-05-31 10:24:13.371523114 +0100
+@@ -1,3 +1,5 @@
++source_sh ${srcdir}/emulparams/dt-relr.sh
++
+ ARCH=aarch64
+ MACHINE=
+ NOP=0x1f2003d5
+diff -rupN binutils,orig/ld/emulparams/aarch64linux.sh binutils-2.41/ld/emulparams/aarch64linux.sh
+--- binutils,orig/ld/emulparams/aarch64linux.sh	2024-05-31 10:18:04.488951522 +0100
++++ binutils-2.41/ld/emulparams/aarch64linux.sh	2024-05-31 10:24:13.372523116 +0100
+@@ -1,3 +1,5 @@
++source_sh ${srcdir}/emulparams/dt-relr.sh
++
+ ARCH=aarch64
+ MACHINE=
+ NOP=0x1f2003d5
+diff -rupN binutils,orig/ld/ldlex.c binutils-2.41/ld/ldlex.c
+--- binutils,orig/ld/ldlex.c	2024-05-31 10:18:04.506951548 +0100
++++ binutils-2.41/ld/ldlex.c	2024-05-31 10:42:15.601508811 +0100
+@@ -1,5 +1,5 @@
+ 
+-#line 2 "ldlex.c"
++#line 2 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.c"
+ 
+ #define  YY_INT_ALIGNED short int
+ 
+@@ -1339,8 +1339,8 @@ int yy_flex_debug = 0;
+ #define YY_MORE_ADJ 0
+ #define YY_RESTORE_YY_MORE_OFFSET
+ char *yytext;
+-#line 1 "ldlex.l"
+-#line 4 "ldlex.l"
++#line 1 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
++#line 4 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ 
+ /* Copyright (C) 1991-2023 Free Software Foundation, Inc.
+    Written by Steve Chamberlain of Cygnus Support.
+@@ -1427,9 +1427,9 @@ static void lex_warn_invalid (char *wher
+ */
+ #define RTOKEN(x)  {  yylval.token = x; return x; }
+ 
+-#line 1430 "ldlex.c"
++#line 1430 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.c"
+ 
+-#line 1432 "ldlex.c"
++#line 1432 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.c"
+ 
+ #define INITIAL 0
+ #define SCRIPT 1
+@@ -1652,10 +1652,10 @@ YY_DECL
+ 		}
+ 
+ 	{
+-#line 114 "ldlex.l"
++#line 114 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ 
+ 
+-#line 117 "ldlex.l"
++#line 117 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+   if (parser_input != input_selected)
+     {
+       /* The first token of the input determines the initial parser state.  */
+@@ -1663,16 +1663,17 @@ YY_DECL
+       parser_input = input_selected;
+       switch (t)
+ 	{
+-	case input_script: return INPUT_SCRIPT; break;
+-	case input_mri_script: return INPUT_MRI_SCRIPT; break;
+-	case input_version_script: return INPUT_VERSION_SCRIPT; break;
+-	case input_dynamic_list: return INPUT_DYNAMIC_LIST; break;
+-	case input_defsym: return INPUT_DEFSYM; break;
++	case input_script: return INPUT_SCRIPT;
++	case input_mri_script: return INPUT_MRI_SCRIPT;
++	case input_version_script: return INPUT_VERSION_SCRIPT;
++	case input_section_ordering_script: return INPUT_SECTION_ORDERING_SCRIPT;
++	case input_dynamic_list: return INPUT_DYNAMIC_LIST;
++	case input_defsym: return INPUT_DEFSYM;
+ 	default: abort ();
+ 	}
+     }
+ 
+-#line 1675 "ldlex.c"
++#line 1676 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.c"
+ 
+ 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
+ 		{
+@@ -1731,13 +1732,13 @@ do_action:	/* This label is used only to
+ 
+ case 1:
+ YY_RULE_SETUP
+-#line 133 "ldlex.l"
++#line 134 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				comment (); }
+ 	YY_BREAK
+ case 2:
+ YY_RULE_SETUP
+-#line 136 "ldlex.l"
++#line 137 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				yylval.integer = bfd_scan_vma (yytext + 1, 0, 16);
+ 				yylval.bigint.str = NULL;
+@@ -1746,7 +1747,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 3:
+ YY_RULE_SETUP
+-#line 142 "ldlex.l"
++#line 143 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				   int ibase ;
+ 				   switch (yytext[yyleng - 1]) {
+@@ -1775,7 +1776,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 4:
+ YY_RULE_SETUP
+-#line 167 "ldlex.l"
++#line 168 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				  char *s = yytext;
+ 				  int ibase = 0;
+@@ -1831,849 +1832,849 @@ YY_RULE_SETUP
+   */
+ case 5:
+ YY_RULE_SETUP
+-#line 220 "ldlex.l"
++#line 221 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(']'); }
+ 	YY_BREAK
+ case 6:
+ YY_RULE_SETUP
+-#line 221 "ldlex.l"
++#line 222 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('['); }
+ 	YY_BREAK
+ case 7:
+ YY_RULE_SETUP
+-#line 222 "ldlex.l"
++#line 223 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LSHIFTEQ); }
+ 	YY_BREAK
+ case 8:
+ YY_RULE_SETUP
+-#line 223 "ldlex.l"
++#line 224 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(RSHIFTEQ); }
+ 	YY_BREAK
+ case 9:
+ YY_RULE_SETUP
+-#line 224 "ldlex.l"
++#line 225 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(OROR); }
+ 	YY_BREAK
+ case 10:
+ YY_RULE_SETUP
+-#line 225 "ldlex.l"
++#line 226 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(EQ); }
+ 	YY_BREAK
+ case 11:
+ YY_RULE_SETUP
+-#line 226 "ldlex.l"
++#line 227 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NE); }
+ 	YY_BREAK
+ case 12:
+ YY_RULE_SETUP
+-#line 227 "ldlex.l"
++#line 228 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(GE); }
+ 	YY_BREAK
+ case 13:
+ YY_RULE_SETUP
+-#line 228 "ldlex.l"
++#line 229 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LE); }
+ 	YY_BREAK
+ case 14:
+ YY_RULE_SETUP
+-#line 229 "ldlex.l"
++#line 230 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LSHIFT); }
+ 	YY_BREAK
+ case 15:
+ YY_RULE_SETUP
+-#line 230 "ldlex.l"
++#line 231 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(RSHIFT); }
+ 	YY_BREAK
+ case 16:
+ YY_RULE_SETUP
+-#line 231 "ldlex.l"
++#line 232 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(PLUSEQ); }
+ 	YY_BREAK
+ case 17:
+ YY_RULE_SETUP
+-#line 232 "ldlex.l"
++#line 233 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(MINUSEQ); }
+ 	YY_BREAK
+ case 18:
+ YY_RULE_SETUP
+-#line 233 "ldlex.l"
++#line 234 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(MULTEQ); }
+ 	YY_BREAK
+ case 19:
+ YY_RULE_SETUP
+-#line 234 "ldlex.l"
++#line 235 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(DIVEQ); }
+ 	YY_BREAK
+ case 20:
+ YY_RULE_SETUP
+-#line 235 "ldlex.l"
++#line 236 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ANDEQ); }
+ 	YY_BREAK
+ case 21:
+ YY_RULE_SETUP
+-#line 236 "ldlex.l"
++#line 237 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(OREQ); }
+ 	YY_BREAK
+ case 22:
+ YY_RULE_SETUP
+-#line 237 "ldlex.l"
++#line 238 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ANDAND); }
+ 	YY_BREAK
+ case 23:
+ YY_RULE_SETUP
+-#line 238 "ldlex.l"
++#line 239 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('>'); }
+ 	YY_BREAK
+ case 24:
+ YY_RULE_SETUP
+-#line 239 "ldlex.l"
++#line 240 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(','); }
+ 	YY_BREAK
+ case 25:
+ YY_RULE_SETUP
+-#line 240 "ldlex.l"
++#line 241 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('&'); }
+ 	YY_BREAK
+ case 26:
+ YY_RULE_SETUP
+-#line 241 "ldlex.l"
++#line 242 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('|'); }
+ 	YY_BREAK
+ case 27:
+ YY_RULE_SETUP
+-#line 242 "ldlex.l"
++#line 243 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('~'); }
+ 	YY_BREAK
+ case 28:
+ YY_RULE_SETUP
+-#line 243 "ldlex.l"
++#line 244 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('!'); }
+ 	YY_BREAK
+ case 29:
+ YY_RULE_SETUP
+-#line 244 "ldlex.l"
++#line 245 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('?'); }
+ 	YY_BREAK
+ case 30:
+ YY_RULE_SETUP
+-#line 245 "ldlex.l"
++#line 246 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('*'); }
+ 	YY_BREAK
+ case 31:
+ YY_RULE_SETUP
+-#line 246 "ldlex.l"
++#line 247 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('+'); }
+ 	YY_BREAK
+ case 32:
+ YY_RULE_SETUP
+-#line 247 "ldlex.l"
++#line 248 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('-'); }
+ 	YY_BREAK
+ case 33:
+ YY_RULE_SETUP
+-#line 248 "ldlex.l"
++#line 249 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('/'); }
+ 	YY_BREAK
+ case 34:
+ YY_RULE_SETUP
+-#line 249 "ldlex.l"
++#line 250 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('%'); }
+ 	YY_BREAK
+ case 35:
+ YY_RULE_SETUP
+-#line 250 "ldlex.l"
++#line 251 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('<'); }
+ 	YY_BREAK
+ case 36:
+ YY_RULE_SETUP
+-#line 251 "ldlex.l"
++#line 252 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('='); }
+ 	YY_BREAK
+ case 37:
+ YY_RULE_SETUP
+-#line 252 "ldlex.l"
++#line 253 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('}'); }
+ 	YY_BREAK
+ case 38:
+ YY_RULE_SETUP
+-#line 253 "ldlex.l"
++#line 254 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('{'); }
+ 	YY_BREAK
+ case 39:
+ YY_RULE_SETUP
+-#line 254 "ldlex.l"
++#line 255 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(')'); }
+ 	YY_BREAK
+ case 40:
+ YY_RULE_SETUP
+-#line 255 "ldlex.l"
++#line 256 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN('('); }
+ 	YY_BREAK
+ case 41:
+ YY_RULE_SETUP
+-#line 256 "ldlex.l"
++#line 257 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(':'); }
+ 	YY_BREAK
+ case 42:
+ YY_RULE_SETUP
+-#line 257 "ldlex.l"
++#line 258 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(';'); }
+ 	YY_BREAK
+ case 43:
+ YY_RULE_SETUP
+-#line 258 "ldlex.l"
++#line 259 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(MEMORY); }
+ 	YY_BREAK
+ case 44:
+ YY_RULE_SETUP
+-#line 259 "ldlex.l"
++#line 260 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(REGION_ALIAS); }
+ 	YY_BREAK
+ case 45:
+ YY_RULE_SETUP
+-#line 260 "ldlex.l"
++#line 261 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LD_FEATURE); }
+ 	YY_BREAK
+ case 46:
+ YY_RULE_SETUP
+-#line 261 "ldlex.l"
++#line 262 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ORIGIN); }
+ 	YY_BREAK
+ case 47:
+ YY_RULE_SETUP
+-#line 262 "ldlex.l"
++#line 263 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(VERSIONK); }
+ 	YY_BREAK
+ case 48:
+ YY_RULE_SETUP
+-#line 263 "ldlex.l"
++#line 264 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(BLOCK); }
+ 	YY_BREAK
+ case 49:
+ YY_RULE_SETUP
+-#line 264 "ldlex.l"
++#line 265 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(BIND); }
+ 	YY_BREAK
+ case 50:
+ YY_RULE_SETUP
+-#line 265 "ldlex.l"
++#line 266 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LENGTH); }
+ 	YY_BREAK
+ case 51:
+ YY_RULE_SETUP
+-#line 266 "ldlex.l"
++#line 267 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGN_K); }
+ 	YY_BREAK
+ case 52:
+ YY_RULE_SETUP
+-#line 267 "ldlex.l"
++#line 268 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(DATA_SEGMENT_ALIGN); }
+ 	YY_BREAK
+ case 53:
+ YY_RULE_SETUP
+-#line 268 "ldlex.l"
++#line 269 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(DATA_SEGMENT_RELRO_END); }
+ 	YY_BREAK
+ case 54:
+ YY_RULE_SETUP
+-#line 269 "ldlex.l"
++#line 270 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(DATA_SEGMENT_END); }
+ 	YY_BREAK
+ case 55:
+ YY_RULE_SETUP
+-#line 270 "ldlex.l"
++#line 271 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ADDR); }
+ 	YY_BREAK
+ case 56:
+ YY_RULE_SETUP
+-#line 271 "ldlex.l"
++#line 272 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LOADADDR); }
+ 	YY_BREAK
+ case 57:
+ YY_RULE_SETUP
+-#line 272 "ldlex.l"
++#line 273 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGNOF); }
+ 	YY_BREAK
+ case 58:
+ YY_RULE_SETUP
+-#line 273 "ldlex.l"
++#line 274 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ABSOLUTE); }
+ 	YY_BREAK
+ case 59:
+ YY_RULE_SETUP
+-#line 274 "ldlex.l"
++#line 275 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(MAX_K); }
+ 	YY_BREAK
+ case 60:
+ YY_RULE_SETUP
+-#line 275 "ldlex.l"
++#line 276 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(MIN_K); }
+ 	YY_BREAK
+ case 61:
+ YY_RULE_SETUP
+-#line 276 "ldlex.l"
++#line 277 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LOG2CEIL); }
+ 	YY_BREAK
+ case 62:
+ YY_RULE_SETUP
+-#line 277 "ldlex.l"
++#line 278 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ASSERT_K); }
+ 	YY_BREAK
+ case 63:
+ YY_RULE_SETUP
+-#line 278 "ldlex.l"
++#line 279 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ENTRY); }
+ 	YY_BREAK
+ case 64:
+ YY_RULE_SETUP
+-#line 279 "ldlex.l"
++#line 280 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(EXTERN); }
+ 	YY_BREAK
+ case 65:
+ YY_RULE_SETUP
+-#line 280 "ldlex.l"
++#line 281 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NEXT); }
+ 	YY_BREAK
+ case 66:
+ YY_RULE_SETUP
+-#line 281 "ldlex.l"
++#line 282 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SIZEOF_HEADERS); }
+ 	YY_BREAK
+ case 67:
+ YY_RULE_SETUP
+-#line 282 "ldlex.l"
++#line 283 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SEGMENT_START); }
+ 	YY_BREAK
+ case 68:
+ YY_RULE_SETUP
+-#line 283 "ldlex.l"
++#line 284 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(MAP); }
+ 	YY_BREAK
+ case 69:
+ YY_RULE_SETUP
+-#line 284 "ldlex.l"
++#line 285 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SIZEOF); }
+ 	YY_BREAK
+ case 70:
+ YY_RULE_SETUP
+-#line 285 "ldlex.l"
++#line 286 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(TARGET_K); }
+ 	YY_BREAK
+ case 71:
+ YY_RULE_SETUP
+-#line 286 "ldlex.l"
++#line 287 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SEARCH_DIR); }
+ 	YY_BREAK
+ case 72:
+ YY_RULE_SETUP
+-#line 287 "ldlex.l"
++#line 288 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(OUTPUT); }
+ 	YY_BREAK
+ case 73:
+ YY_RULE_SETUP
+-#line 288 "ldlex.l"
++#line 289 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(INPUT); }
+ 	YY_BREAK
+ case 74:
+ YY_RULE_SETUP
+-#line 289 "ldlex.l"
++#line 290 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(GROUP); }
+ 	YY_BREAK
+ case 75:
+ YY_RULE_SETUP
+-#line 290 "ldlex.l"
++#line 291 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(AS_NEEDED); }
+ 	YY_BREAK
+ case 76:
+ YY_RULE_SETUP
+-#line 291 "ldlex.l"
++#line 292 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(DEFINED); }
+ 	YY_BREAK
+ case 77:
+ YY_RULE_SETUP
+-#line 292 "ldlex.l"
++#line 293 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CREATE_OBJECT_SYMBOLS); }
+ 	YY_BREAK
+ case 78:
+ YY_RULE_SETUP
+-#line 293 "ldlex.l"
++#line 294 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CONSTRUCTORS); }
+ 	YY_BREAK
+ case 79:
+ YY_RULE_SETUP
+-#line 294 "ldlex.l"
++#line 295 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(FORCE_COMMON_ALLOCATION); }
+ 	YY_BREAK
+ case 80:
+ YY_RULE_SETUP
+-#line 295 "ldlex.l"
++#line 296 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(FORCE_GROUP_ALLOCATION); }
+ 	YY_BREAK
+ case 81:
+ YY_RULE_SETUP
+-#line 296 "ldlex.l"
++#line 297 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(INHIBIT_COMMON_ALLOCATION); }
+ 	YY_BREAK
+ case 82:
+ YY_RULE_SETUP
+-#line 297 "ldlex.l"
++#line 298 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SECTIONS); }
+ 	YY_BREAK
+ case 83:
+ YY_RULE_SETUP
+-#line 298 "ldlex.l"
++#line 299 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(INSERT_K); }
+ 	YY_BREAK
+ case 84:
+ YY_RULE_SETUP
+-#line 299 "ldlex.l"
++#line 300 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(AFTER); }
+ 	YY_BREAK
+ case 85:
+ YY_RULE_SETUP
+-#line 300 "ldlex.l"
++#line 301 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(BEFORE); }
+ 	YY_BREAK
+ case 86:
+ YY_RULE_SETUP
+-#line 301 "ldlex.l"
++#line 302 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(FILL); }
+ 	YY_BREAK
+ case 87:
+ YY_RULE_SETUP
+-#line 302 "ldlex.l"
++#line 303 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(STARTUP); }
+ 	YY_BREAK
+ case 88:
+ YY_RULE_SETUP
+-#line 303 "ldlex.l"
++#line 304 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(OUTPUT_FORMAT); }
+ 	YY_BREAK
+ case 89:
+ YY_RULE_SETUP
+-#line 304 "ldlex.l"
++#line 305 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(OUTPUT_ARCH); }
+ 	YY_BREAK
+ case 90:
+ YY_RULE_SETUP
+-#line 305 "ldlex.l"
++#line 306 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(HLL); }
+ 	YY_BREAK
+ case 91:
+ YY_RULE_SETUP
+-#line 306 "ldlex.l"
++#line 307 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SYSLIB); }
+ 	YY_BREAK
+ case 92:
+ YY_RULE_SETUP
+-#line 307 "ldlex.l"
++#line 308 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(FLOAT); }
+ 	YY_BREAK
+ case 93:
+ YY_RULE_SETUP
+-#line 308 "ldlex.l"
++#line 309 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(QUAD); }
+ 	YY_BREAK
+ case 94:
+ YY_RULE_SETUP
+-#line 309 "ldlex.l"
++#line 310 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SQUAD); }
+ 	YY_BREAK
+ case 95:
+ YY_RULE_SETUP
+-#line 310 "ldlex.l"
++#line 311 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LONG); }
+ 	YY_BREAK
+ case 96:
+ YY_RULE_SETUP
+-#line 311 "ldlex.l"
++#line 312 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SHORT); }
+ 	YY_BREAK
+ case 97:
+ YY_RULE_SETUP
+-#line 312 "ldlex.l"
++#line 313 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(BYTE); }
+ 	YY_BREAK
+ case 98:
+ YY_RULE_SETUP
+-#line 313 "ldlex.l"
++#line 314 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ASCIZ); }
+ 	YY_BREAK
+ case 99:
+ YY_RULE_SETUP
+-#line 314 "ldlex.l"
++#line 315 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LINKER_VERSION); }
+ 	YY_BREAK
+ case 100:
+ YY_RULE_SETUP
+-#line 315 "ldlex.l"
++#line 316 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NOFLOAT); }
+ 	YY_BREAK
+ case 101:
+ YY_RULE_SETUP
+-#line 316 "ldlex.l"
++#line 317 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NOCROSSREFS); }
+ 	YY_BREAK
+ case 102:
+ YY_RULE_SETUP
+-#line 317 "ldlex.l"
++#line 318 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NOCROSSREFS_TO); }
+ 	YY_BREAK
+ case 103:
+ YY_RULE_SETUP
+-#line 318 "ldlex.l"
++#line 319 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(OVERLAY); }
+ 	YY_BREAK
+ case 104:
+ YY_RULE_SETUP
+-#line 319 "ldlex.l"
++#line 320 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SORT_BY_NAME); }
+ 	YY_BREAK
+ case 105:
+ YY_RULE_SETUP
+-#line 320 "ldlex.l"
++#line 321 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SORT_BY_ALIGNMENT); }
+ 	YY_BREAK
+ case 106:
+ YY_RULE_SETUP
+-#line 321 "ldlex.l"
++#line 322 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SORT_BY_NAME); }
+ 	YY_BREAK
+ case 107:
+ YY_RULE_SETUP
+-#line 322 "ldlex.l"
++#line 323 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SORT_BY_INIT_PRIORITY); }
+ 	YY_BREAK
+ case 108:
+ YY_RULE_SETUP
+-#line 323 "ldlex.l"
++#line 324 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SORT_NONE); }
+ 	YY_BREAK
+ case 109:
+ YY_RULE_SETUP
+-#line 324 "ldlex.l"
++#line 325 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NOLOAD); }
+ 	YY_BREAK
+ case 110:
+ YY_RULE_SETUP
+-#line 325 "ldlex.l"
++#line 326 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(READONLY); }
+ 	YY_BREAK
+ case 111:
+ YY_RULE_SETUP
+-#line 326 "ldlex.l"
++#line 327 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(DSECT); }
+ 	YY_BREAK
+ case 112:
+ YY_RULE_SETUP
+-#line 327 "ldlex.l"
++#line 328 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(COPY); }
+ 	YY_BREAK
+ case 113:
+ YY_RULE_SETUP
+-#line 328 "ldlex.l"
++#line 329 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(INFO); }
+ 	YY_BREAK
+ case 114:
+ YY_RULE_SETUP
+-#line 329 "ldlex.l"
++#line 330 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(TYPE); }
+ 	YY_BREAK
+ case 115:
+ YY_RULE_SETUP
+-#line 330 "ldlex.l"
++#line 331 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ONLY_IF_RO); }
+ 	YY_BREAK
+ case 116:
+ YY_RULE_SETUP
+-#line 331 "ldlex.l"
++#line 332 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ONLY_IF_RW); }
+ 	YY_BREAK
+ case 117:
+ YY_RULE_SETUP
+-#line 332 "ldlex.l"
++#line 333 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SPECIAL); }
+ 	YY_BREAK
+ case 118:
+ YY_RULE_SETUP
+-#line 333 "ldlex.l"
++#line 334 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ORIGIN); }
+ 	YY_BREAK
+ case 119:
+ YY_RULE_SETUP
+-#line 334 "ldlex.l"
++#line 335 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ORIGIN); }
+ 	YY_BREAK
+ case 120:
+ YY_RULE_SETUP
+-#line 335 "ldlex.l"
++#line 336 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LENGTH); }
+ 	YY_BREAK
+ case 121:
+ YY_RULE_SETUP
+-#line 336 "ldlex.l"
++#line 337 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LENGTH); }
+ 	YY_BREAK
+ case 122:
+ YY_RULE_SETUP
+-#line 337 "ldlex.l"
++#line 338 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(INPUT_SECTION_FLAGS); }
+ 	YY_BREAK
+ case 123:
+ YY_RULE_SETUP
+-#line 338 "ldlex.l"
++#line 339 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(INCLUDE);}
+ 	YY_BREAK
+ case 124:
+ YY_RULE_SETUP
+-#line 339 "ldlex.l"
++#line 340 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(PHDRS); }
+ 	YY_BREAK
+ case 125:
+ YY_RULE_SETUP
+-#line 340 "ldlex.l"
++#line 341 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(AT);}
+ 	YY_BREAK
+ case 126:
+ YY_RULE_SETUP
+-#line 341 "ldlex.l"
++#line 342 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGN_WITH_INPUT);}
+ 	YY_BREAK
+ case 127:
+ YY_RULE_SETUP
+-#line 342 "ldlex.l"
++#line 343 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SUBALIGN);}
+ 	YY_BREAK
+ case 128:
+ YY_RULE_SETUP
+-#line 343 "ldlex.l"
++#line 344 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(HIDDEN); }
+ 	YY_BREAK
+ case 129:
+ YY_RULE_SETUP
+-#line 344 "ldlex.l"
++#line 345 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(PROVIDE); }
+ 	YY_BREAK
+ case 130:
+ YY_RULE_SETUP
+-#line 345 "ldlex.l"
++#line 346 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(PROVIDE_HIDDEN); }
+ 	YY_BREAK
+ case 131:
+ YY_RULE_SETUP
+-#line 346 "ldlex.l"
++#line 347 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(KEEP); }
+ 	YY_BREAK
+ case 132:
+ YY_RULE_SETUP
+-#line 347 "ldlex.l"
++#line 348 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(EXCLUDE_FILE); }
+ 	YY_BREAK
+ case 133:
+ YY_RULE_SETUP
+-#line 348 "ldlex.l"
++#line 349 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CONSTANT);}
+ 	YY_BREAK
+ case 134:
+ /* rule 134 can match eol */
+ YY_RULE_SETUP
+-#line 350 "ldlex.l"
++#line 351 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { ++ lineno; }
+ 	YY_BREAK
+ case 135:
+ /* rule 135 can match eol */
+ YY_RULE_SETUP
+-#line 351 "ldlex.l"
++#line 352 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { ++ lineno;  RTOKEN(NEWLINE); }
+ 	YY_BREAK
+ case 136:
+ YY_RULE_SETUP
+-#line 352 "ldlex.l"
++#line 353 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { /* Mri comment line */ }
+ 	YY_BREAK
+ case 137:
+ YY_RULE_SETUP
+-#line 353 "ldlex.l"
++#line 354 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { /* Mri comment line */ }
+ 	YY_BREAK
+ case 138:
+ YY_RULE_SETUP
+-#line 354 "ldlex.l"
++#line 355 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ENDWORD); }
+ 	YY_BREAK
+ case 139:
+ YY_RULE_SETUP
+-#line 355 "ldlex.l"
++#line 356 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ABSOLUTE); }
+ 	YY_BREAK
+ case 140:
+ YY_RULE_SETUP
+-#line 356 "ldlex.l"
++#line 357 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGNMOD);}
+ 	YY_BREAK
+ case 141:
+ YY_RULE_SETUP
+-#line 357 "ldlex.l"
++#line 358 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGN_K);}
+ 	YY_BREAK
+ case 142:
+ YY_RULE_SETUP
+-#line 358 "ldlex.l"
++#line 359 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CHIP); }
+ 	YY_BREAK
+ case 143:
+ YY_RULE_SETUP
+-#line 359 "ldlex.l"
++#line 360 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(BASE); }
+ 	YY_BREAK
+ case 144:
+ YY_RULE_SETUP
+-#line 360 "ldlex.l"
++#line 361 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIAS); }
+ 	YY_BREAK
+ case 145:
+ YY_RULE_SETUP
+-#line 361 "ldlex.l"
++#line 362 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(TRUNCATE); }
+ 	YY_BREAK
+ case 146:
+ YY_RULE_SETUP
+-#line 362 "ldlex.l"
++#line 363 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LOAD); }
+ 	YY_BREAK
+ case 147:
+ YY_RULE_SETUP
+-#line 363 "ldlex.l"
++#line 364 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(PUBLIC); }
+ 	YY_BREAK
+ case 148:
+ YY_RULE_SETUP
+-#line 364 "ldlex.l"
++#line 365 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ORDER); }
+ 	YY_BREAK
+ case 149:
+ YY_RULE_SETUP
+-#line 365 "ldlex.l"
++#line 366 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NAMEWORD); }
+ 	YY_BREAK
+ case 150:
+ YY_RULE_SETUP
+-#line 366 "ldlex.l"
++#line 367 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(FORMAT); }
+ 	YY_BREAK
+ case 151:
+ YY_RULE_SETUP
+-#line 367 "ldlex.l"
++#line 368 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CASE); }
+ 	YY_BREAK
+ case 152:
+ YY_RULE_SETUP
+-#line 368 "ldlex.l"
++#line 369 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(START); }
+ 	YY_BREAK
+ case 153:
+ YY_RULE_SETUP
+-#line 369 "ldlex.l"
++#line 370 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LIST); /* LIST and ignore to end of line */ }
+ 	YY_BREAK
+ case 154:
+ YY_RULE_SETUP
+-#line 370 "ldlex.l"
++#line 371 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SECT); }
+ 	YY_BREAK
+ case 155:
+ YY_RULE_SETUP
+-#line 371 "ldlex.l"
++#line 372 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ENDWORD); }
+ 	YY_BREAK
+ case 156:
+ YY_RULE_SETUP
+-#line 372 "ldlex.l"
++#line 373 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ABSOLUTE); }
+ 	YY_BREAK
+ case 157:
+ YY_RULE_SETUP
+-#line 373 "ldlex.l"
++#line 374 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGNMOD);}
+ 	YY_BREAK
+ case 158:
+ YY_RULE_SETUP
+-#line 374 "ldlex.l"
++#line 375 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIGN_K);}
+ 	YY_BREAK
+ case 159:
+ YY_RULE_SETUP
+-#line 375 "ldlex.l"
++#line 376 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CHIP); }
+ 	YY_BREAK
+ case 160:
+ YY_RULE_SETUP
+-#line 376 "ldlex.l"
++#line 377 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(BASE); }
+ 	YY_BREAK
+ case 161:
+ YY_RULE_SETUP
+-#line 377 "ldlex.l"
++#line 378 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ALIAS); }
+ 	YY_BREAK
+ case 162:
+ YY_RULE_SETUP
+-#line 378 "ldlex.l"
++#line 379 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(TRUNCATE); }
+ 	YY_BREAK
+ case 163:
+ YY_RULE_SETUP
+-#line 379 "ldlex.l"
++#line 380 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LOAD); }
+ 	YY_BREAK
+ case 164:
+ YY_RULE_SETUP
+-#line 380 "ldlex.l"
++#line 381 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(PUBLIC); }
+ 	YY_BREAK
+ case 165:
+ YY_RULE_SETUP
+-#line 381 "ldlex.l"
++#line 382 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(ORDER); }
+ 	YY_BREAK
+ case 166:
+ YY_RULE_SETUP
+-#line 382 "ldlex.l"
++#line 383 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(NAMEWORD); }
+ 	YY_BREAK
+ case 167:
+ YY_RULE_SETUP
+-#line 383 "ldlex.l"
++#line 384 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(FORMAT); }
+ 	YY_BREAK
+ case 168:
+ YY_RULE_SETUP
+-#line 384 "ldlex.l"
++#line 385 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(CASE); }
+ 	YY_BREAK
+ case 169:
+ YY_RULE_SETUP
+-#line 385 "ldlex.l"
++#line 386 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(EXTERN); }
+ 	YY_BREAK
+ case 170:
+ YY_RULE_SETUP
+-#line 386 "ldlex.l"
++#line 387 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(START); }
+ 	YY_BREAK
+ case 171:
+ YY_RULE_SETUP
+-#line 387 "ldlex.l"
++#line 388 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LIST); /* LIST and ignore to end of line */ }
+ 	YY_BREAK
+ case 172:
+ YY_RULE_SETUP
+-#line 388 "ldlex.l"
++#line 389 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(SECT); }
+ 	YY_BREAK
+ case 173:
+ YY_RULE_SETUP
+-#line 390 "ldlex.l"
++#line 391 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ /* Filename without commas, needed to parse mri stuff */
+ 				  yylval.name = xstrdup (yytext);
+@@ -2682,7 +2683,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 174:
+ YY_RULE_SETUP
+-#line 397 "ldlex.l"
++#line 398 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				  yylval.name = xstrdup (yytext);
+ 				  return NAME;
+@@ -2690,7 +2691,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 175:
+ YY_RULE_SETUP
+-#line 401 "ldlex.l"
++#line 402 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ /* Filename to be prefixed by --sysroot or when non-sysrooted, nothing.  */
+ 				  yylval.name = xstrdup (yytext);
+@@ -2699,7 +2700,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 176:
+ YY_RULE_SETUP
+-#line 406 "ldlex.l"
++#line 407 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				  yylval.name = xstrdup (yytext + 2);
+ 				  return LNAME;
+@@ -2707,7 +2708,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 177:
+ YY_RULE_SETUP
+-#line 410 "ldlex.l"
++#line 411 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				  yylval.name = xstrdup (yytext);
+ 				  return NAME;
+@@ -2717,7 +2718,7 @@ YY_RULE_SETUP
+      section before /DISCARD/ interpreting the '/' as a divide.  */
+ case 178:
+ YY_RULE_SETUP
+-#line 416 "ldlex.l"
++#line 417 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				  yylval.name = xstrdup (yytext);
+ 				  return NAME;
+@@ -2725,7 +2726,7 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 179:
+ YY_RULE_SETUP
+-#line 420 "ldlex.l"
++#line 421 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 		/* Annoyingly, this pattern can match comments, and we have
+ 		   longest match issues to consider.  So if the first two
+@@ -2746,7 +2747,7 @@ YY_RULE_SETUP
+ case 180:
+ /* rule 180 can match eol */
+ YY_RULE_SETUP
+-#line 437 "ldlex.l"
++#line 438 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 		/* No matter the state, quotes give what's inside.  */
+ 		yylval.name = xmemdup (yytext + 1, yyleng - 2, yyleng - 1);
+@@ -2756,62 +2757,62 @@ YY_RULE_SETUP
+ case 181:
+ /* rule 181 can match eol */
+ YY_RULE_SETUP
+-#line 443 "ldlex.l"
++#line 444 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				lineno++; }
+ 	YY_BREAK
+ case 182:
+ YY_RULE_SETUP
+-#line 445 "ldlex.l"
++#line 446 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				/* Eat up whitespace */ }
+ 	YY_BREAK
+ case 183:
+ YY_RULE_SETUP
+-#line 447 "ldlex.l"
++#line 448 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+ 				/* Eat up comments */ }
+ 	YY_BREAK
+ case 184:
+ YY_RULE_SETUP
+-#line 450 "ldlex.l"
++#line 451 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { return *yytext; }
+ 	YY_BREAK
+ case 185:
+ YY_RULE_SETUP
+-#line 452 "ldlex.l"
++#line 453 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(GLOBAL); }
+ 	YY_BREAK
+ case 186:
+ YY_RULE_SETUP
+-#line 454 "ldlex.l"
++#line 455 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(LOCAL); }
+ 	YY_BREAK
+ case 187:
+ YY_RULE_SETUP
+-#line 456 "ldlex.l"
++#line 457 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { RTOKEN(EXTERN); }
+ 	YY_BREAK
+ case 188:
+ YY_RULE_SETUP
+-#line 458 "ldlex.l"
++#line 459 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { yylval.name = xstrdup (yytext);
+ 				  return VERS_IDENTIFIER; }
+ 	YY_BREAK
+ case 189:
+ YY_RULE_SETUP
+-#line 461 "ldlex.l"
++#line 462 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { yylval.name = xstrdup (yytext);
+ 				  return VERS_TAG; }
+ 	YY_BREAK
+ case 190:
+ YY_RULE_SETUP
+-#line 464 "ldlex.l"
++#line 465 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { BEGIN(VERS_SCRIPT); return *yytext; }
+ 	YY_BREAK
+ case 191:
+ YY_RULE_SETUP
+-#line 466 "ldlex.l"
++#line 467 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { BEGIN(VERS_NODE);
+ 				  vers_node_nesting = 0;
+ 				  return *yytext;
+@@ -2819,17 +2820,17 @@ YY_RULE_SETUP
+ 	YY_BREAK
+ case 192:
+ YY_RULE_SETUP
+-#line 470 "ldlex.l"
++#line 471 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { return *yytext; }
+ 	YY_BREAK
+ case 193:
+ YY_RULE_SETUP
+-#line 471 "ldlex.l"
++#line 472 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { vers_node_nesting++; return *yytext; }
+ 	YY_BREAK
+ case 194:
+ YY_RULE_SETUP
+-#line 472 "ldlex.l"
++#line 473 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ { if (--vers_node_nesting < 0)
+ 				    BEGIN(VERS_SCRIPT);
+ 				  return *yytext;
+@@ -2844,7 +2845,7 @@ case YY_STATE_EOF(WILD):
+ case YY_STATE_EOF(VERS_START):
+ case YY_STATE_EOF(VERS_SCRIPT):
+ case YY_STATE_EOF(VERS_NODE):
+-#line 477 "ldlex.l"
++#line 478 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ {
+   include_stack_ptr--;
+   if (include_stack_ptr == 0)
+@@ -2863,20 +2864,20 @@ case YY_STATE_EOF(VERS_NODE):
+ 	YY_BREAK
+ case 195:
+ YY_RULE_SETUP
+-#line 493 "ldlex.l"
++#line 494 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ lex_warn_invalid (_(" in script"), yytext);
+ 	YY_BREAK
+ case 196:
+ YY_RULE_SETUP
+-#line 494 "ldlex.l"
++#line 495 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ lex_warn_invalid (_(" in expression"), yytext);
+ 	YY_BREAK
+ case 197:
+ YY_RULE_SETUP
+-#line 496 "ldlex.l"
++#line 497 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ ECHO;
+ 	YY_BREAK
+-#line 2879 "ldlex.c"
++#line 2880 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.c"
+ 
+ 	case YY_END_OF_BUFFER:
+ 		{
+@@ -3842,7 +3843,7 @@ void yyfree (void * ptr )
+ 
+ #define YYTABLES_NAME "yytables"
+ 
+-#line 496 "ldlex.l"
++#line 497 "/work/sources/binutils/centos/fork/c10s/binutils-2.41/ld/ldlex.l"
+ 
+ 
+ 
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/aarch64-elf.exp binutils-2.41/ld/testsuite/ld-aarch64/aarch64-elf.exp
+--- binutils,orig/ld/testsuite/ld-aarch64/aarch64-elf.exp	2024-05-31 10:18:04.537951592 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/aarch64-elf.exp	2024-05-31 10:24:17.527529606 +0100
+@@ -467,6 +467,14 @@ run_dump_test "bti-far-1"
+ run_dump_test "bti-far-2"
+ run_dump_test "bti-far-opt"
+ 
++run_dump_test_lp64 "relr-align"
++run_dump_test_lp64 "relr-data-pie"
++run_dump_test_lp64 "relr-data-shared"
++run_dump_test_lp64 "relr-got-pie"
++run_dump_test_lp64 "relr-got-shared"
++run_dump_test_lp64 "relr-text-pie"
++run_dump_test_lp64 "relr-text-shared"
++
+ if { ![skip_sframe_tests] } {
+   run_dump_test "sframe-simple-1"
+ }
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-align.d binutils-2.41/ld/testsuite/ld-aarch64/relr-align.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-align.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-align.d	2024-05-31 10:24:17.528529607 +0100
+@@ -0,0 +1,22 @@
++#source: relr-align.s
++#ld: -shared -z pack-relative-relocs -T relocs.ld
++#readelf: -rW
++
++Relocation section '\.rela\.dyn' at offset 0x10090 contains 3 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000012340011  0000000000000403 R_AARCH64_RELATIVE                        10000
++0000000012340019  0000000000000403 R_AARCH64_RELATIVE                        10000
++0000000012340041  0000000000000403 R_AARCH64_RELATIVE                        10000
++
++Relocation section '\.relr\.dyn' at offset 0x100d8 contains 9 entries which relocate 10 locations:
++Index: Entry            Address           Symbolic Address
++0000:  0000000012340000 0000000012340000  double_0
++0001:  0000000000000003 0000000012340008  double_0 \+ 0x8
++0002:  0000000012340022 0000000012340022  double_2
++0003:  0000000000000003 000000001234002a  double_2 \+ 0x8
++0004:  0000000012340038 0000000012340038  single_0
++0005:  000000001234004a 000000001234004a  single_2
++0006:  0000000012340058 0000000012340058  big
++0007:  8000000100000001 0000000012340158  big \+ 0x100
++                        0000000012340250  big \+ 0x1f8
++0008:  0000000000000003 0000000012340258  big \+ 0x200
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-align.s binutils-2.41/ld/testsuite/ld-aarch64/relr-align.s
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-align.s	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-align.s	2024-05-31 10:24:17.528529607 +0100
+@@ -0,0 +1,106 @@
++// Test DT_RELR with differently aligned relative relocs.
++
++.text
++.global _start
++_start:
++foo:
++
++.data
++.p2align 3
++double_0:
++.xword foo
++.xword foo
++.byte 0
++double_1:
++.xword foo
++.xword foo
++.byte 0
++double_2:
++.xword foo
++.xword foo
++.byte 0
++.byte 0
++.byte 0
++.byte 0
++.byte 0
++.byte 0
++single_0:
++.xword foo
++.byte 0
++single_1:
++.xword foo
++.byte 0
++single_2:
++.xword foo
++.byte 0
++.byte 0
++.byte 0
++.byte 0
++.byte 0
++.byte 0
++big:
++.xword foo
++.xword 1
++.xword 2
++.xword 3
++.xword 4
++.xword 5
++.xword 6
++.xword 7
++.xword 8
++.xword 9
++.xword 10
++.xword 11
++.xword 12
++.xword 13
++.xword 14
++.xword 15
++.xword 16
++.xword 17
++.xword 18
++.xword 19
++.xword 20
++.xword 21
++.xword 22
++.xword 23
++.xword 24
++.xword 25
++.xword 26
++.xword 27
++.xword 28
++.xword 29
++.xword 30
++.xword 31
++.xword foo + 32
++.xword 33
++.xword 34
++.xword 35
++.xword 36
++.xword 37
++.xword 38
++.xword 39
++.xword 40
++.xword 41
++.xword 42
++.xword 43
++.xword 44
++.xword 45
++.xword 46
++.xword 47
++.xword 48
++.xword 49
++.xword 50
++.xword 51
++.xword 52
++.xword 53
++.xword 54
++.xword 55
++.xword 56
++.xword 57
++.xword 58
++.xword 59
++.xword 60
++.xword 61
++.xword 62
++.xword foo + 63
++.xword foo + 64
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-data-pie.d binutils-2.41/ld/testsuite/ld-aarch64/relr-data-pie.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-data-pie.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-data-pie.d	2024-05-31 10:24:17.528529607 +0100
+@@ -0,0 +1,18 @@
++#source: relr-data.s
++#ld: -pie -z pack-relative-relocs -T relocs.ld
++#readelf: -rW
++
++Relocation section '\.rela\.dyn' at offset 0x1.* contains 5 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000012340000  0000000000000403 R_AARCH64_RELATIVE                        10004
++0000000012340008  0000000000000403 R_AARCH64_RELATIVE                        10008
++0000000012340010  0000000000000403 R_AARCH64_RELATIVE                        1000c
++0000000012340018  0000000000000403 R_AARCH64_RELATIVE                        12340050
++0000000012340040  0000000300000101 R_AARCH64_ABS64        0000000000000000 sym_weak_undef \+ 0
++
++Relocation section '\.relr\.dyn' at offset 0x1.* contains 2 entries which relocate 4 locations:
++Index: Entry            Address           Symbolic Address
++0000:  0000000012340020 0000000012340020  aligned_local
++0001:  0000000000000027 0000000012340028  aligned_hidden
++                        0000000012340030  aligned_global
++                        0000000012340048  aligned_DYNAMIC
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-data-shared.d binutils-2.41/ld/testsuite/ld-aarch64/relr-data-shared.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-data-shared.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-data-shared.d	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,18 @@
++#source: relr-data.s
++#ld: -shared -z pack-relative-relocs -T relocs.ld
++#readelf: -rW
++
++Relocation section '\.rela\.dyn' at offset 0x10150 contains 6 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000012340000  0000000000000403 R_AARCH64_RELATIVE                        10004
++0000000012340008  0000000000000403 R_AARCH64_RELATIVE                        10008
++0000000012340018  0000000000000403 R_AARCH64_RELATIVE                        12340050
++0000000012340010  0000000400000101 R_AARCH64_ABS64        000000000001000c sym_global \+ 0
++0000000012340030  0000000400000101 R_AARCH64_ABS64        000000000001000c sym_global \+ 0
++0000000012340040  0000000300000101 R_AARCH64_ABS64        0000000000000000 sym_weak_undef \+ 0
++
++Relocation section '\.relr\.dyn' at offset 0x101e0 contains 2 entries which relocate 3 locations:
++Index: Entry            Address           Symbolic Address
++0000:  0000000012340020 0000000012340020  aligned_local
++0001:  0000000000000023 0000000012340028  aligned_hidden
++                        0000000012340048  aligned_DYNAMIC
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-data.s binutils-2.41/ld/testsuite/ld-aarch64/relr-data.s
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-data.s	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-data.s	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,71 @@
++// Test symbol references in .data when used with DT_RELR.
++// Relocations for unaligned sections are currently not packed.
++
++.text
++.global _start
++_start:
++	nop
++
++sym_local:
++	nop
++
++.global sym_hidden
++.hidden sym_hidden
++sym_hidden:
++	nop
++
++.global sym_global
++sym_global:
++	nop
++
++.global sym_global_abs
++.set sym_global_abs, 42
++
++.global sym_weak_undef
++.weak sym_weak_undef
++
++.section .data.unaligned_local
++unaligned_local:
++.xword sym_local
++
++.section .data.unaligned_hidden
++unaligned_hidden:
++.xword sym_hidden
++
++.section .data.unaligned_global
++unaligned_global:
++.xword sym_global
++
++.section .data.unaligned_DYNAMIC
++unaligned_DYNAMIC:
++.xword _DYNAMIC
++
++.section .data.aligned_local
++.p2align 1
++aligned_local:
++.xword sym_local
++
++.section .data.aligned_hidden
++.p2align 1
++aligned_hidden:
++.xword sym_hidden
++
++.section .data.aligned_global
++.p2align 1
++aligned_global:
++.xword sym_global
++
++.section .data.aligned_global_abs
++.p2align 1
++aligned_global_abs:
++.xword sym_global_abs
++
++.section .data.aligned_weak_undef
++.p2align 1
++aligned_weak_undef:
++.xword sym_weak_undef
++
++.section .data.aligned_DYNAMIC
++.p2align 1
++aligned_DYNAMIC:
++.xword _DYNAMIC
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-got-pie.d binutils-2.41/ld/testsuite/ld-aarch64/relr-got-pie.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-got-pie.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-got-pie.d	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,15 @@
++#source: relr-got.s
++#ld: -pie -z pack-relative-relocs -T relocs.ld
++#readelf: -rW
++
++Relocation section '\.rela\.dyn' at offset 0x1.* contains 2 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000020030  0000000200000401 R_AARCH64_GLOB_DAT     0000000000000000 sym_weak_undef \+ 0
++
++Relocation section '\.relr\.dyn' at offset 0x1.* contains 2 entries which relocate 4 locations:
++Index: Entry            Address           Symbolic Address
++0000:  0000000000020008 0000000000020008  _GLOBAL_OFFSET_TABLE_ \+ 0x8
++0001:  000000000000000f 0000000000020010  _GLOBAL_OFFSET_TABLE_ \+ 0x10
++                        0000000000020018  _GLOBAL_OFFSET_TABLE_ \+ 0x18
++                        0000000000020020  _GLOBAL_OFFSET_TABLE_ \+ 0x20
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-got-shared.d binutils-2.41/ld/testsuite/ld-aarch64/relr-got-shared.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-got-shared.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-got-shared.d	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,15 @@
++#source: relr-got.s
++#ld: -shared -z pack-relative-relocs -T relocs.ld
++#readelf: -rW
++
++Relocation section '\.rela\.dyn' at offset 0x10168 contains 3 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000000020020  0000000300000401 R_AARCH64_GLOB_DAT     0000000000010038 sym_global \+ 0
++0000000000020028  0000000500000401 R_AARCH64_GLOB_DAT     000000000000002a sym_global_abs \+ 0
++0000000000020030  0000000200000401 R_AARCH64_GLOB_DAT     0000000000000000 sym_weak_undef \+ 0
++
++Relocation section '\.relr\.dyn' at offset 0x101b0 contains 2 entries which relocate 3 locations:
++Index: Entry            Address           Symbolic Address
++0000:  0000000000020008 0000000000020008  _GLOBAL_OFFSET_TABLE_ \+ 0x8
++0001:  0000000000000007 0000000000020010  _GLOBAL_OFFSET_TABLE_ \+ 0x10
++                        0000000000020018  _GLOBAL_OFFSET_TABLE_ \+ 0x18
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-got.s binutils-2.41/ld/testsuite/ld-aarch64/relr-got.s
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-got.s	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-got.s	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,40 @@
++// Test GOT relocations with DT_RELR.
++
++.text
++.global _start
++_start:
++	adrp	x0, :got:sym_local
++	ldr	x0, [x0, :got_lo12:sym_local]
++
++	adrp	x0, :got:sym_hidden
++	ldr	x0, [x0, :got_lo12:sym_hidden]
++
++	adrp	x0, :got:sym_global
++	ldr	x0, [x0, :got_lo12:sym_global]
++
++	adrp	x0, :got:sym_global
++	ldr	x0, [x0, :got_lo12:sym_global_abs]
++
++	adrp	x0, :got:sym_weak_undef
++	ldr	x0, [x0, :got_lo12:sym_weak_undef]
++
++	adrp	x0, :got:_DYNAMIC
++	ldr	x0, [x0, :got_lo12:_DYNAMIC]
++
++sym_local:
++	nop
++
++.global sym_hidden
++.hidden sym_hidden
++sym_hidden:
++	nop
++
++.global sym_global
++sym_global:
++	nop
++
++.global sym_global_abs
++.set sym_global_abs, 42
++
++.global sym_weak_undef
++.weak sym_weak_undef
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-text-pie.d binutils-2.41/ld/testsuite/ld-aarch64/relr-text-pie.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-text-pie.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-text-pie.d	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,14 @@
++#source: relr-text.s
++#ld: -pie -z pack-relative-relocs -T relocs.ld
++#readelf: -drW
++
++#...
++ 0x0000000000000016 \(TEXTREL\)            0x0
++#...
++ 0x0000000000000024 \(RELR\)               0x1.*
++ 0x0000000000000023 \(RELRSZ\)             8 \(bytes\)
++ 0x0000000000000025 \(RELRENT\)            8 \(bytes\)
++#...
++Relocation section '\.relr\.dyn' at offset 0x1.* contains 1 entry which relocates 1 location:
++Index: Entry            Address           Symbolic Address
++0000:  0000000000010000 0000000000010000  _start
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-text-shared.d binutils-2.41/ld/testsuite/ld-aarch64/relr-text-shared.d
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-text-shared.d	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-text-shared.d	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,14 @@
++#source: relr-text.s
++#ld: -shared -z pack-relative-relocs -T relocs.ld
++#readelf: -drW
++
++#...
++ 0x0000000000000016 \(TEXTREL\)            0x0
++#...
++ 0x0000000000000024 \(RELR\)               0x10098
++ 0x0000000000000023 \(RELRSZ\)             8 \(bytes\)
++ 0x0000000000000025 \(RELRENT\)            8 \(bytes\)
++#...
++Relocation section '.relr.dyn' at offset 0x10098 contains 1 entry which relocates 1 location:
++Index: Entry            Address           Symbolic Address
++0000:  0000000000010000 0000000000010000  _start
+diff -rupN binutils,orig/ld/testsuite/ld-aarch64/relr-text.s binutils-2.41/ld/testsuite/ld-aarch64/relr-text.s
+--- binutils,orig/ld/testsuite/ld-aarch64/relr-text.s	1970-01-01 01:00:00.000000000 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-text.s	2024-05-31 10:24:17.529529609 +0100
+@@ -0,0 +1,10 @@
++// Test DT_RELR with DT_TEXTREL.
++
++.text
++.p2align 3
++.global _start
++_start:
++.global foo
++.hidden foo
++foo:
++.xword foo
+diff -rupN binutils,orig/ld/testsuite/ld-elf/dt-relr-2b.d binutils-2.41/ld/testsuite/ld-elf/dt-relr-2b.d
+--- binutils,orig/ld/testsuite/ld-elf/dt-relr-2b.d	2024-05-31 10:18:04.595951676 +0100
++++ binutils-2.41/ld/testsuite/ld-elf/dt-relr-2b.d	2024-05-31 10:47:05.480989983 +0100
+@@ -12,6 +12,10 @@ Relocation section '\.rel(a|)\.dyn' at o
+ #...
+ [0-9a-f]+ +[0-9a-f]+ +R_.*_(RELATIVE|UADDR.*) .*
+ #...
+-Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries:
+-  4 offsets
++Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +data
++0001: +[0-9a-f]+ [0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
+ #pass
+diff -rupN binutils,orig/ld/testsuite/ld-elf/dt-relr-2c.d binutils-2.41/ld/testsuite/ld-elf/dt-relr-2c.d
+--- binutils,orig/ld/testsuite/ld-elf/dt-relr-2c.d	2024-05-31 10:18:04.595951676 +0100
++++ binutils-2.41/ld/testsuite/ld-elf/dt-relr-2c.d	2024-05-31 10:48:54.367169332 +0100
+@@ -12,6 +12,9 @@ Relocation section '\.rel(a|)\.dyn' at o
+ #...
+ [0-9a-f]+ +[0-9a-f]+ +R_.*_(RELATIVE|UADDR.*) .*
+ #...
+-Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries:
+-  3 offsets
++Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #pass
+diff -rupN binutils,orig/ld/testsuite/ld-elf/dt-relr-2d.d binutils-2.41/ld/testsuite/ld-elf/dt-relr-2d.d
+--- binutils,orig/ld/testsuite/ld-elf/dt-relr-2d.d	2024-05-31 10:18:04.595951676 +0100
++++ binutils-2.41/ld/testsuite/ld-elf/dt-relr-2d.d	2024-05-31 10:49:24.208217983 +0100
+@@ -12,6 +12,11 @@ Relocation section '\.rel(a|)\.dyn' at o
+ #...
+ [0-9a-f]+ +[0-9a-f]+ +R_.*_(RELATIVE|UADDR.*) .*
+ #...
+-Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries:
+-  4 offsets
++Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +data
++0001: +[0-9a-f]+ [0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
+ #pass
++
+diff -rupN binutils,orig/ld/testsuite/ld-elf/dt-relr-2e.d binutils-2.41/ld/testsuite/ld-elf/dt-relr-2e.d
+--- binutils,orig/ld/testsuite/ld-elf/dt-relr-2e.d	2024-05-31 10:18:04.595951676 +0100
++++ binutils-2.41/ld/testsuite/ld-elf/dt-relr-2e.d	2024-05-31 10:49:50.783261306 +0100
+@@ -12,6 +12,10 @@ Relocation section '\.rel(a|)\.data' at
+ #...
+ [0-9a-f]+ +[0-9a-f]+ +R_.*_(RELATIVE|UADDR.*) .*
+ #...
+-Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries:
+-  4 offsets
++Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +data
++0001: +[0-9a-f]+ [0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
+ #pass
+diff -rupN binutils,orig/ld/testsuite/ld-elf/dt-relr-2i.d binutils-2.41/ld/testsuite/ld-elf/dt-relr-2i.d
+--- binutils,orig/ld/testsuite/ld-elf/dt-relr-2i.d	2024-05-31 10:18:04.595951676 +0100
++++ binutils-2.41/ld/testsuite/ld-elf/dt-relr-2i.d	2024-05-31 10:50:16.624303428 +0100
+@@ -12,6 +12,10 @@ Relocation section '\.rel(a|)\.dyn' at o
+ #...
+ [0-9a-f]+ +[0-9a-f]+ +R_.*_(RELATIVE|UADDR.*) .*
+ #...
+-Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries:
+-  4 offsets
++Relocation section '\.relr\.dyn' at offset 0x[0-9a-f]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +data
++0001: +[0-9a-f]+ [0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
++ +[0-9a-f]+ +data \+ 0x[0-9a-f]+
+ #pass
+diff -rupN binutils,orig/ld/testsuite/ld-i386/dt-relr-1a.d binutils-2.41/ld/testsuite/ld-i386/dt-relr-1a.d
+--- binutils,orig/ld/testsuite/ld-i386/dt-relr-1a.d	2024-05-31 10:18:04.635951733 +0100
++++ binutils-2.41/ld/testsuite/ld-i386/dt-relr-1a.d	2024-05-31 10:51:43.768445485 +0100
+@@ -13,12 +13,11 @@ Relocation section '\.rel\.plt' at offse
+  +Offset +Info +Type +Sym. Value +Symbol's Name
+ [0-9a-f]+ +[0-9a-f]+ +R_386_JUMP_SLOT +0+ +func1
+ 
+-Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries:
+- +3 offsets
+-[a-f0-9]+
+-[a-f0-9]+
+-[a-f0-9]+
+-
++Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #...
+ Symbol table '.symtab' contains [0-9]+ entries:
+    Num:    Value  Size Type    Bind   Vis      Ndx Name
+diff -rupN binutils,orig/ld/testsuite/ld-i386/dt-relr-1b.d binutils-2.41/ld/testsuite/ld-i386/dt-relr-1b.d
+--- binutils,orig/ld/testsuite/ld-i386/dt-relr-1b.d	2024-05-31 10:18:04.635951733 +0100
++++ binutils-2.41/ld/testsuite/ld-i386/dt-relr-1b.d	2024-05-31 10:52:16.055498118 +0100
+@@ -16,12 +16,11 @@ Relocation section '\.rel\.plt' at offse
+  +Offset +Info +Type +Sym. Value +Symbol's Name
+ [0-9a-f]+ +[0-9a-f]+ +R_386_JUMP_SLOT +0+ +func1
+ 
+-Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries:
+- +3 offsets
+-[a-f0-9]+
+-[a-f0-9]+
+-[a-f0-9]+
+-
++Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #...
+ Symbol table '.symtab' contains [0-9]+ entries:
+    Num:    Value  Size Type    Bind   Vis      Ndx Name
+diff -rupN binutils,orig/ld/testsuite/ld-powerpc/abs-pie-relr.r binutils-2.41/ld/testsuite/ld-powerpc/abs-pie-relr.r
+--- binutils,orig/ld/testsuite/ld-powerpc/abs-pie-relr.r	2024-05-31 10:18:04.721951857 +0100
++++ binutils-2.41/ld/testsuite/ld-powerpc/abs-pie-relr.r	2024-05-31 10:52:57.544565350 +0100
+@@ -3,6 +3,7 @@
+ #ld: -melf64ppc -pie --hash-style=sysv -z pack-relative-relocs --defsym a=1 --defsym 'HIDDEN(b=2)' --defsym c=0x123456789abcdef0
+ #readelf: -rW
+ 
+-Relocation section '\.relr\.dyn' at offset .* contains 1 entry:
+-  1 offset
+-0+10338
++Relocation section '\.relr\.dyn' at offset .* contains 1 entry which relocates 1 location:
++Index: Entry            Address           Symbolic Address
++0000: +[0-9a-f]+ [0-9a-f]+ +x
++
+diff -rupN binutils,orig/ld/testsuite/ld-powerpc/abs-shared-relr.r binutils-2.41/ld/testsuite/ld-powerpc/abs-shared-relr.r
+--- binutils,orig/ld/testsuite/ld-powerpc/abs-shared-relr.r	2024-05-31 10:18:04.721951857 +0100
++++ binutils-2.41/ld/testsuite/ld-powerpc/abs-shared-relr.r	2024-05-31 10:53:21.664603856 +0100
+@@ -12,6 +12,7 @@ Relocation section '\.rela\.dyn' at offs
+ 0+10428  0+400000014 R_PPC64_GLOB_DAT       123456789abcdef0 c \+ 0
+ 0+10450  0+400000026 R_PPC64_ADDR64         123456789abcdef0 c \+ 0
+ 
+-Relocation section '\.relr\.dyn' at offset .* contains 1 entry:
+-  1 offset
+-0+10438
++Relocation section '\.relr\.dyn' at offset .* contains 1 entry which relocates 1 location:
++Index: Entry            Address           Symbolic Address
++0000: +[0-9a-f]+ [0-9a-f]+ +x
++
+diff -rupN binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1a-x32.d binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1a-x32.d
+--- binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1a-x32.d	2024-05-31 10:18:04.781951943 +0100
++++ binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1a-x32.d	2024-05-31 10:55:07.672773069 +0100
+@@ -13,12 +13,11 @@ Relocation section '.rela.plt' at offset
+  +Offset +Info +Type +Sym. Value +Symbol's Name \+ Addend
+ [0-9a-f]+ +[0-9a-f]+ +R_X86_64_JUMP_SLOT +0+ +func1 \+ 0
+ 
+-Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries:
+- +3 offsets
+-[a-f0-9]+
+-[a-f0-9]+
+-[a-f0-9]+
+-
++Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #...
+ Symbol table '.symtab' contains [0-9]+ entries:
+  +Num: +Value +Size Type +Bind +Vis +Ndx Name
+diff -rupN binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1a.d binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1a.d
+--- binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1a.d	2024-05-31 10:18:04.781951943 +0100
++++ binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1a.d	2024-05-31 10:54:21.440699272 +0100
+@@ -13,12 +13,11 @@ Relocation section '.rela.plt' at offset
+  +Offset +Info +Type +Symbol's Value +Symbol's Name \+ Addend
+ [0-9a-f]+ +[0-9a-f]+ +R_X86_64_JUMP_SLOT +0+ +func1 \+ 0
+ 
+-Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries:
+- +3 offsets
+-[a-f0-9]+
+-[a-f0-9]+
+-[a-f0-9]+
+-
++Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #...
+ Symbol table '.symtab' contains [0-9]+ entries:
+  +Num: +Value +Size Type +Bind +Vis +Ndx Name
+diff -rupN binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1b-x32.d binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1b-x32.d
+--- binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1b-x32.d	2024-05-31 10:18:04.781951943 +0100
++++ binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1b-x32.d	2024-05-31 10:55:27.936805417 +0100
+@@ -16,12 +16,11 @@ Relocation section '.rela.plt' at offset
+  +Offset +Info +Type +Sym. Value +Symbol's Name \+ Addend
+ [0-9a-f]+ +[0-9a-f]+ +R_X86_64_JUMP_SLOT +0+ +func1 \+ 0
+ 
+-Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries:
+- +3 offsets
+-[a-f0-9]+
+-[a-f0-9]+
+-[a-f0-9]+
+-
++Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #...
+ Symbol table '.symtab' contains [0-9]+ entries:
+  +Num: +Value +Size Type +Bind +Vis +Ndx Name
+diff -rupN binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1b.d binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1b.d
+--- binutils,orig/ld/testsuite/ld-x86-64/dt-relr-1b.d	2024-05-31 10:18:04.781951943 +0100
++++ binutils-2.41/ld/testsuite/ld-x86-64/dt-relr-1b.d	2024-05-31 10:54:44.649736317 +0100
+@@ -16,12 +16,11 @@ Relocation section '.rela.plt' at offset
+  +Offset +Info +Type +Symbol's Value +Symbol's Name \+ Addend
+ [0-9a-f]+ +[0-9a-f]+ +R_X86_64_JUMP_SLOT +0+ +func1 \+ 0
+ 
+-Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries:
+- +3 offsets
+-[a-f0-9]+
+-[a-f0-9]+
+-[a-f0-9]+
+-
++Relocation section '.relr.dyn' at offset 0x[a-f0-9]+ contains 2 entries which relocate [0-9]+ locations:
++#...
++0000: +[0-9a-f]+ [0-9a-f]+ +.*
++0001: +[0-9a-f]+ [0-9a-f]+ +.*
++ +[0-9a-f]+ +.*
+ #...
+ Symbol table '.symtab' contains [0-9]+ entries:
+  +Num: +Value +Size Type +Bind +Vis +Ndx Name
+diff -rup binutils.orig/bfd/elfnn-aarch64.c binutils-2.41/bfd/elfnn-aarch64.c
+--- binutils.orig/bfd/elfnn-aarch64.c	2024-06-17 16:39:30.773928699 +0100
++++ binutils-2.41/bfd/elfnn-aarch64.c	2024-06-17 16:40:31.696076282 +0100
+@@ -9330,6 +9330,8 @@ record_relr_non_got_relocs (bfd *input_b
+     return true;
+   if (sec->alignment_power == 0)
+     return true;
++  if (discarded_section (sec))
++    return true;
+   sreloc = elf_section_data (sec)->sreloc;
+   if (sreloc == NULL)
+     return true;
+@@ -9604,8 +9606,7 @@ elfNN_aarch64_size_dynamic_sections (bfd
+ 	  for (p = (struct elf_dyn_relocs *)
+ 	       (elf_section_data (s)->local_dynrel); p != NULL; p = p->next)
+ 	    {
+-	      if (!bfd_is_abs_section (p->sec)
+-		  && bfd_is_abs_section (p->sec->output_section))
++	      if (discarded_section (p->sec))
+ 		{
+ 		  /* Input section has been discarded, either because
+ 		     it is a copy of a linkonce section or due to
+Only in binutils-2.41/bfd: elfnn-aarch64.c.orig
+diff -rup binutils.orig/ld/testsuite/ld-aarch64/aarch64-elf.exp binutils-2.41/ld/testsuite/ld-aarch64/aarch64-elf.exp
+--- binutils.orig/ld/testsuite/ld-aarch64/aarch64-elf.exp	2024-06-17 16:39:33.555935438 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/aarch64-elf.exp	2024-06-17 16:40:40.933098658 +0100
+@@ -474,6 +474,8 @@ run_dump_test_lp64 "relr-got-pie"
+ run_dump_test_lp64 "relr-got-shared"
+ run_dump_test_lp64 "relr-text-pie"
+ run_dump_test_lp64 "relr-text-shared"
++run_dump_test_lp64 "relr-discard-pie"
++run_dump_test_lp64 "relr-discard-shared"
+ 
+ if { ![skip_sframe_tests] } {
+   run_dump_test "sframe-simple-1"
+Only in binutils-2.41/ld/testsuite/ld-aarch64: aarch64-elf.exp.orig
+Only in binutils-2.41/ld/testsuite/ld-aarch64: relr-discard-pie.d
+Only in binutils-2.41/ld/testsuite/ld-aarch64: relr-discard-shared.d
+Only in binutils-2.41/ld/testsuite/ld-aarch64: relr-discard.ld
+Only in binutils-2.41/ld/testsuite/ld-aarch64: relr-discard.s
+--- /dev/null	2024-06-17 07:14:45.537242699 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-discard-pie.d	2024-06-17 16:40:40.934098660 +0100
+@@ -0,0 +1,18 @@
++#source: relr-discard.s
++#ld: -pie --no-apply-dynamic-relocs -z pack-relative-relocs -T relr-discard.ld
++#readelf: -rW
++
++# Note: There are unnecessary GOT entries and *_NONE relocations
++# for those GOT entries and discarded locations, this is bug 31850.
++
++Relocation section '\.rela\.dyn' at offset 0x1.* contains 4 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++
++Relocation section '\.relr\.dyn' at offset 0x1.* contains 2 entries which relocate 2 locations:
++Index: Entry            Address           Symbolic Address
++0000:  0000000000020008 0000000000020008  _GLOBAL_OFFSET_TABLE_ \+ 0x8
++0001:  0000000000000003 0000000000020010  _GLOBAL_OFFSET_TABLE_ \+ 0x10
+--- /dev/null	2024-06-17 07:14:45.537242699 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-discard-shared.d	2024-06-17 16:40:40.934098660 +0100
+@@ -0,0 +1,18 @@
++#source: relr-discard.s
++#ld: -shared --no-apply-dynamic-relocs -z pack-relative-relocs -T relr-discard.ld
++#readelf: -rW
++
++# Note: There are unnecessary GOT entries and *_NONE relocations
++# for those GOT entries and discarded locations, this is bug 31850.
++
++Relocation section '\.rela\.dyn' at offset 0x1.* contains 5 entries:
++    Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000000000  0000000000000000 R_AARCH64_NONE                            0
++0000000000020010  .* R_AARCH64_GLOB_DAT     000000000001000c sym_global \+ 0
++
++Relocation section '\.relr\.dyn' at offset 0x1.* contains 1 entry which relocates 1 location:
++Index: Entry            Address           Symbolic Address
++0000:  0000000000020008 0000000000020008  _GLOBAL_OFFSET_TABLE_ \+ 0x8
+--- /dev/null	2024-06-17 07:14:45.537242699 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-discard.ld	2024-06-17 16:40:40.935098663 +0100
+@@ -0,0 +1,13 @@
++OUTPUT_ARCH(aarch64)
++ENTRY(_start)
++SECTIONS
++{
++  /DISCARD/ : { *(.discard.*) }
++
++  . = 0x10000;
++  .text : { *(.text) }
++  . = 0x20000;
++  .got  : { *(.got) *(.got.plt)}
++  . = 0x30000;
++  .data : { *(.data) *(.data.*) }
++}
+--- /dev/null	2024-06-17 07:14:45.537242699 +0100
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-discard.s	2024-06-17 16:40:40.935098663 +0100
+@@ -0,0 +1,63 @@
++// Test DT_RELR with references in discarded sections.
++
++.text
++.p2align 3
++.global _start
++_start:
++	nop
++
++sym_local:
++	nop
++
++.global sym_hidden
++.hidden sym_hidden
++sym_hidden:
++	nop
++
++.global sym_global
++sym_global:
++	nop
++
++.global sym_global_abs
++.set sym_global_abs, 42
++
++.global sym_weak_undef
++.weak sym_weak_undef
++
++.section .discard.got_local,"ax"
++	adrp	x0, :got:sym_local
++	ldr	x0, [x0, :got_lo12:sym_local]
++
++.section .discard.got_global,"ax"
++	adrp	x0, :got:sym_global
++	ldr	x0, [x0, :got_lo12:sym_global]
++
++.section .discard.local,"a"
++.p2align 1
++discard_local:
++.xword sym_local
++
++.section .discard.hidden,"a"
++.p2align 1
++discard_hidden:
++.xword sym_hidden
++
++.section .discard.global,"a"
++.p2align 1
++discard_global:
++.xword sym_global
++
++.section .discard.global_abs,"a"
++.p2align 1
++discard_global_abs:
++.xword sym_global_abs
++
++.section .discard.weak_undef,"a"
++.p2align 1
++discard_weak_undef:
++.xword sym_weak_undef
++
++.section .discard._DYNAMIC,"a"
++.p2align 1
++discard_DYNAMIC:
++.xword _DYNAMIC
+--- binutils.orig/bfd/elfnn-aarch64.c	2024-07-03 11:30:06.253468451 +0100
++++ binutils-2.41/bfd/elfnn-aarch64.c	2024-07-03 11:32:46.511868389 +0100
+@@ -5993,8 +5993,6 @@ elfNN_aarch64_final_link_relocate (reloc
+ 	    {
+ 	      /* Don't emit a relative relocation that is packed, only
+ 		 apply the addend.  */
+-	      if (globals->no_apply_dynamic_relocs)
+-		return bfd_reloc_ok;
+ 	      return _bfd_final_link_relocate (howto, input_bfd, input_section,
+ 					       contents, rel->r_offset, value,
+ 					       signed_addend);
+diff -rup binutils.orig/ld/testsuite/ld-aarch64/relr-align.d binutils-2.41/ld/testsuite/ld-aarch64/relr-align.d
+--- binutils.orig/ld/testsuite/ld-aarch64/relr-align.d	2024-12-02 18:36:21.957480121 +0000
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-align.d	2024-12-02 18:37:32.142592796 +0000
+@@ -2,13 +2,13 @@
+ #ld: -shared -z pack-relative-relocs -T relocs.ld
+ #readelf: -rW
+ 
+-Relocation section '\.rela\.dyn' at offset 0x10090 contains 3 entries:
++Relocation section '\.rela\.dyn' at offset 0x100.. contains 3 entries:
+     Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
+ 0000000012340011  0000000000000403 R_AARCH64_RELATIVE                        10000
+ 0000000012340019  0000000000000403 R_AARCH64_RELATIVE                        10000
+ 0000000012340041  0000000000000403 R_AARCH64_RELATIVE                        10000
+ 
+-Relocation section '\.relr\.dyn' at offset 0x100d8 contains 9 entries which relocate 10 locations:
++Relocation section '\.relr\.dyn' at offset 0x100.. contains 9 entries which relocate 10 locations:
+ Index: Entry            Address           Symbolic Address
+ 0000:  0000000012340000 0000000012340000  double_0
+ 0001:  0000000000000003 0000000012340008  double_0 \+ 0x8
+diff -rup binutils.orig/ld/testsuite/ld-aarch64/relr-data-shared.d binutils-2.41/ld/testsuite/ld-aarch64/relr-data-shared.d
+--- binutils.orig/ld/testsuite/ld-aarch64/relr-data-shared.d	2024-12-02 18:36:21.957480121 +0000
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-data-shared.d	2024-12-02 18:37:58.702635434 +0000
+@@ -2,7 +2,7 @@
+ #ld: -shared -z pack-relative-relocs -T relocs.ld
+ #readelf: -rW
+ 
+-Relocation section '\.rela\.dyn' at offset 0x10150 contains 6 entries:
++Relocation section '\.rela\.dyn' at offset 0x101.. contains 6 entries:
+     Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
+ 0000000012340000  0000000000000403 R_AARCH64_RELATIVE                        10004
+ 0000000012340008  0000000000000403 R_AARCH64_RELATIVE                        10008
+@@ -11,7 +11,7 @@ Relocation section '\.rela\.dyn' at offs
+ 0000000012340030  0000000400000101 R_AARCH64_ABS64        000000000001000c sym_global \+ 0
+ 0000000012340040  0000000300000101 R_AARCH64_ABS64        0000000000000000 sym_weak_undef \+ 0
+ 
+-Relocation section '\.relr\.dyn' at offset 0x101e0 contains 2 entries which relocate 3 locations:
++Relocation section '\.relr\.dyn' at offset 0x101.. contains 2 entries which relocate 3 locations:
+ Index: Entry            Address           Symbolic Address
+ 0000:  0000000012340020 0000000012340020  aligned_local
+ 0001:  0000000000000023 0000000012340028  aligned_hidden
+diff -rup binutils.orig/ld/testsuite/ld-aarch64/relr-got-shared.d binutils-2.41/ld/testsuite/ld-aarch64/relr-got-shared.d
+--- binutils.orig/ld/testsuite/ld-aarch64/relr-got-shared.d	2024-12-02 18:36:21.957480121 +0000
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-got-shared.d	2024-12-02 18:38:21.422671912 +0000
+@@ -2,13 +2,13 @@
+ #ld: -shared -z pack-relative-relocs -T relocs.ld
+ #readelf: -rW
+ 
+-Relocation section '\.rela\.dyn' at offset 0x10168 contains 3 entries:
++Relocation section '\.rela\.dyn' at offset 0x101.. contains 3 entries:
+     Offset             Info             Type               Symbol's Value  Symbol's Name \+ Addend
+ 0000000000020020  0000000300000401 R_AARCH64_GLOB_DAT     0000000000010038 sym_global \+ 0
+ 0000000000020028  0000000500000401 R_AARCH64_GLOB_DAT     000000000000002a sym_global_abs \+ 0
+ 0000000000020030  0000000200000401 R_AARCH64_GLOB_DAT     0000000000000000 sym_weak_undef \+ 0
+ 
+-Relocation section '\.relr\.dyn' at offset 0x101b0 contains 2 entries which relocate 3 locations:
++Relocation section '\.relr\.dyn' at offset 0x101.. contains 2 entries which relocate 3 locations:
+ Index: Entry            Address           Symbolic Address
+ 0000:  0000000000020008 0000000000020008  _GLOBAL_OFFSET_TABLE_ \+ 0x8
+ 0001:  0000000000000007 0000000000020010  _GLOBAL_OFFSET_TABLE_ \+ 0x10
+--- binutils.orig/ld/testsuite/ld-aarch64/relr-text-shared.d	2024-12-02 18:36:21.957480121 +0000
++++ binutils-2.41/ld/testsuite/ld-aarch64/relr-text-shared.d	2024-12-02 19:05:37.138237202 +0000
+@@ -5,10 +5,10 @@
+ #...
+  0x0000000000000016 \(TEXTREL\)            0x0
+ #...
+- 0x0000000000000024 \(RELR\)               0x10098
++ 0x0000000000000024 \(RELR\)               0x100..
+  0x0000000000000023 \(RELRSZ\)             8 \(bytes\)
+  0x0000000000000025 \(RELRENT\)            8 \(bytes\)
+ #...
+-Relocation section '.relr.dyn' at offset 0x10098 contains 1 entry which relocates 1 location:
++Relocation section '.relr.dyn' at offset 0x100.. contains 1 entry which relocates 1 location:
+ Index: Entry            Address           Symbolic Address
+ 0000:  0000000000010000 0000000000010000  _start

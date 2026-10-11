@@ -1,0 +1,232 @@
+commit 620c85fb709d27ab9c523f90dc027d05961fa3bd
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Wed Jan 14 17:09:40 2026 +0000
+
+    testsuite: Fix issues with cross testing in guality tests
+    
+    The guality tests expect to run (native) GDB on the target.  If this
+    is available, there is some support for cross testing, but with
+    various defects and limitations, some of them fixed here.
+    
+    * GUALITY_GDB_NAME doesn't get passed through to the target for remote
+      testing (a general limitation of the DejaGnu interface: it doesn't
+      support setting environment variables on the target).  Not fixed
+      here.
+    
+    * Using in-tree GDB is only appropriate when host = target, since
+      in-tree GDB runs on the host and the testsuite runs GDB on the
+      target.  Fixed here.  (Note that [isnative] isn't used because that
+      refers to build = target, and we need host = target here.)
+    
+    * [transform gdb] is not appropriate because that's a cross-GDB and
+      the tests run GDB on the target, so need a native GDB.  Fixed here.
+    
+    * gdb-test (used by some guality tests) exits early in cross and
+      remote cases (whereas the tests running GDB directly from the test
+      itself via popen can already do so on the target without needing
+      further patches).  Fixed here.  There are various other fixes done
+      in gdb-test as well; it needs to transfer files to the target then
+      delete them afterwards.
+    
+    * report_gdb expects to run GDB on the host when the tests run it on
+      the target.  Fixed here.
+    
+    Note: some similar fixes will also be needed for simulate-thread tests
+    to get them working for cross testing, but I haven't done those yet.
+    
+    Tested for x86_64-pc-linux-gnu to make sure native testing isn't
+    broken, and with cross to aarch64-linux.
+    
+            * lib/gcc-gdb-test.exp (gdb-test): Do not return early for
+            non-native and remote.  Download executable and GDB command file
+            to target before running GDB there, and delete when closing
+            target.
+            (report_gdb): Use target when testing GDB availability and
+            version.
+            * g++.dg/guality/guality.exp: Only use in-tree GDB when host =
+            target.  Do not use [transform gdb].
+            * gcc.dg/guality/guality.exp: Likewise.
+            * gfortran.dg/guality/guality.exp: Likewise.
+
+diff --git a/gcc/testsuite/g++.dg/guality/guality.exp b/gcc/testsuite/g++.dg/guality/guality.exp
+index 6de5e8091a50..695ed02b89bb 100644
+--- a/gcc/testsuite/g++.dg/guality/guality.exp
++++ b/gcc/testsuite/g++.dg/guality/guality.exp
+@@ -40,14 +40,17 @@ dg-init
+ torture-init
+ 
+ global GDB
++global host_triplet target_triplet
+ if ![info exists ::env(GUALITY_GDB_NAME)] {
+     if [info exists GDB] {
+ 	set guality_gdb_name "$GDB"
+-    } elseif { [info exists rootme] && [file exists $rootme/../gdb/gdb] } {
++    } elseif { [string equal $host_triplet $target_triplet]
++	       && [info exists rootme]
++	       && [file exists $rootme/../gdb/gdb] } {
+ 	# If we're doing a combined build, and gdb is available, use it.
+ 	set guality_gdb_name "$rootme/../gdb/gdb"
+     } else {
+-	set guality_gdb_name "[transform gdb]"
++	set guality_gdb_name "gdb"
+     }
+     setenv GUALITY_GDB_NAME "$guality_gdb_name"
+ }
+diff --git a/gcc/testsuite/gcc.dg/guality/guality.exp b/gcc/testsuite/gcc.dg/guality/guality.exp
+index 0dc8f10762d7..4d342aa51658 100644
+--- a/gcc/testsuite/gcc.dg/guality/guality.exp
++++ b/gcc/testsuite/gcc.dg/guality/guality.exp
+@@ -40,14 +40,17 @@ dg-init
+ torture-init
+ 
+ global GDB
++global host_triplet target_triplet
+ if ![info exists ::env(GUALITY_GDB_NAME)] {
+     if [info exists GDB] {
+ 	set guality_gdb_name "$GDB"
+-    } elseif { [info exists rootme] && [file exists $rootme/../gdb/gdb] } {
++    } elseif { [string equal $host_triplet $target_triplet]
++	       && [info exists rootme]
++	       && [file exists $rootme/../gdb/gdb] } {
+ 	# If we're doing a combined build, and gdb is available, use it.
+ 	set guality_gdb_name "$rootme/../gdb/gdb"
+     } else {
+-	set guality_gdb_name "[transform gdb]"
++	set guality_gdb_name "gdb"
+     }
+     setenv GUALITY_GDB_NAME "$guality_gdb_name"
+ }
+diff --git a/gcc/testsuite/gfortran.dg/guality/guality.exp b/gcc/testsuite/gfortran.dg/guality/guality.exp
+index 105e08a70d88..3ee157abf7b3 100644
+--- a/gcc/testsuite/gfortran.dg/guality/guality.exp
++++ b/gcc/testsuite/gfortran.dg/guality/guality.exp
+@@ -21,14 +21,17 @@ dg-init
+ torture-init
+ 
+ global GDB
++global host_triplet target_triplet
+ if ![info exists ::env(GUALITY_GDB_NAME)] {
+     if [info exists GDB] {
+ 	set guality_gdb_name "$GDB"
+-    } elseif { [info exists rootme] && [file exists $rootme/../gdb/gdb] } {
++    } elseif { [string equal $host_triplet $target_triplet]
++	       && [info exists rootme]
++	       && [file exists $rootme/../gdb/gdb] } {
+ 	# If we're doing a combined build, and gdb is available, use it.
+ 	set guality_gdb_name "$rootme/../gdb/gdb"
+     } else {
+-	set guality_gdb_name "[transform gdb]"
++	set guality_gdb_name "gdb"
+     }
+     setenv GUALITY_GDB_NAME "$guality_gdb_name"
+ }
+diff --git a/gcc/testsuite/lib/gcc-gdb-test.exp b/gcc/testsuite/lib/gcc-gdb-test.exp
+index 942853f183e6..f7c1da8fae25 100644
+--- a/gcc/testsuite/lib/gcc-gdb-test.exp
++++ b/gcc/testsuite/lib/gcc-gdb-test.exp
+@@ -27,8 +27,6 @@
+ #   the literal string with extra whitespace removed.
+ # Argument 3 handles expected failures and the like
+ proc gdb-test { useline args } {
+-    if { ![isnative] || [is_remote target] } { return }
+-
+     if { [llength $args] >= 4 } {
+ 	switch [dg-process-target [lindex $args 3]] {
+ 	    "S" { }
+@@ -80,11 +78,17 @@ proc gdb-test { useline args } {
+     puts $fd "quit"
+     close $fd
+ 
+-    send_log "Spawning: $gdb_name -nx -nw -quiet -batch -x $cmd_file ./$output_file\n"
+-    set res [remote_spawn target "$gdb_name -nx -nw -quiet -batch -x $cmd_file ./$output_file"]
++    set cmd_file_remote [remote_download target $cmd_file]
++    set output_file_remote [remote_download target $output_file]
++    send_log "Spawning: $gdb_name -nx -nw -quiet -batch -x $cmd_file_remote $output_file_remote\n"
++    set res [remote_spawn target "$gdb_name -nx -nw -quiet -batch -x $cmd_file_remote $output_file_remote"]
+     if { $res < 0 || $res == "" } {
+ 	unsupported "$testname"
+ 	file delete $cmd_file
++	if { [is_remote target] } {
++	    remote_file target delete $cmd_file_remote
++	    remote_file target delete $output_file_remote
++	}
+ 	return
+     }
+ 
+@@ -94,6 +98,10 @@ proc gdb-test { useline args } {
+ 	    unsupported "$testname"
+ 	    remote_close target
+ 	    file delete $cmd_file
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $output_file_remote
++	    }
+ 	    return
+ 	}
+ 	# print var; print expected
+@@ -110,6 +118,10 @@ proc gdb-test { useline args } {
+ 	    }
+ 	    remote_close target
+ 	    file delete $cmd_file
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $output_file_remote
++	    }
+ 	    return
+ 	}
+ 	# ptype var;
+@@ -131,12 +143,20 @@ proc gdb-test { useline args } {
+ 	    }
+ 	    remote_close target
+ 	    file delete $cmd_file
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $output_file_remote
++	    }
+ 	    return
+ 	}
+ 	timeout {
+ 	    unsupported "$testname"
+ 	    remote_close target
+ 	    file delete $cmd_file
++	    if { [is_remote target] } {
++		remote_file target delete $cmd_file_remote
++		remote_file target delete $output_file_remote
++	    }
+ 	    return
+ 	}
+     }
+@@ -144,6 +164,10 @@ proc gdb-test { useline args } {
+     unsupported "$testname"
+     remote_close target
+     file delete $cmd_file
++    if { [is_remote target] } {
++	remote_file target delete $cmd_file_remote
++	remote_file target delete $output_file_remote
++    }
+     return
+ }
+ 
+@@ -152,15 +176,18 @@ proc gdb-test { useline args } {
+ # Argument 1 is the location where gdb is used
+ # 
+ proc report_gdb { gdb loc } {
+-    if { [catch { exec which $gdb } msg] } {
+-	send_log "gdb not found in $loc: $msg\n"
++    set status [remote_exec target "which" "$gdb"]
++    set gdb [string trim [lindex $status 1]]
++    if { [lindex $status 0] != 0 } {
++	send_log "gdb not found in $loc: $gdb\n"
+ 	return
+     }
+-    set gdb [exec which $gdb]
+     send_log "gdb used in $loc: $gdb\n"
+ 
+     send_log "gdb used in $loc: "
+-    if { [catch { exec $gdb -v } gdb_version] } {
++    set status [remote_exec target "$gdb" "-v"]
++    set gdb_version [lindex $status 1]
++    if { [lindex $status 0] != 0 } {
+ 	send_log "getting version failed:\n"
+     } else {
+ 	send_log "version:\n"

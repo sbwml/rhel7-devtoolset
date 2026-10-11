@@ -1,0 +1,29 @@
+# Tier 0 test plan. It's actually Tier 1
+#   - limited to its public part
+#   - executed on the architecture at hand
+# When run by osci.tier0 on CentOS Stream or RHEL, it receives the following
+# context:
+#   arch=x86_64 (the architecture at hand, currently OSCI uses just x86_64)
+#   distro=rhel<M>.<m> (even for CentOS Stream builds)
+#   trigger=build
+
+summary: Tier 0 test plan
+context:
+  component: gcc-toolset-14
+discover:
+  - name: collect_info
+    how: shell
+    tests:
+      - name: /info/rpms
+        test: rpm -qa --last
+  - name: public_tests
+    how: fmf
+    url: https://gitlab.com/redhat/centos-stream/tests/gcc-toolset-metapackage.git
+    filter: tier:1
+execute:
+  how: tmt
+prepare+:
+  how: shell
+environment+:
+  COLLECTIONS: gcc-toolset-14
+  WITH_SCL: "scl enable gcc-toolset-14"

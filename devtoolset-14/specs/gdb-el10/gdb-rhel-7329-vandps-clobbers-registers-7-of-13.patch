@@ -1,0 +1,55 @@
+From FEDORA_PATCHES Mon Sep 17 00:00:00 2001
+From: Tom de Vries <tdevries@suse.de>
+Date: Fri, 7 Mar 2025 09:25:33 +0100
+Subject: gdb-rhel-7329-vandps-clobbers-registers-7-of-13.patch
+
+;; [gdb/tdep] Fix rip-relative insn handling in amd64_get_used_input_int_reg
+;; (Tom de Vries, RHEL-7329)
+
+I wanted to add a unit test for an an rip-relative amd64 insn, so I did:
+...
+$ gcc -fPIE hello.c
+...
+and used an rip-relative insn from main:
+...
+  4005db:       48 8d 3d 1e 00 00 00    lea    0x1e(%rip),%rdi
+...
+
+While writing the unit test, I found that amd64_get_used_input_int_reg returns
+rbp as input register.
+
+Fix this by using rip_relative_p in amd64_get_used_input_int_reg to handle
+this case.
+
+Tested on x86_64-linux.
+
+diff --git a/gdb/amd64-tdep.c b/gdb/amd64-tdep.c
+--- a/gdb/amd64-tdep.c
++++ b/gdb/amd64-tdep.c
+@@ -1264,7 +1264,7 @@ amd64_get_used_input_int_regs (const struct amd64_insn *details,
+ 	  used_regs_mask |= 1 << base;
+ 	  used_regs_mask |= 1 << idx;
+ 	}
+-      else
++      else if (!rip_relative_p (modrm))
+ 	{
+ 	  used_regs_mask |= 1 << rm;
+ 	}
+@@ -3447,6 +3447,17 @@ test_amd64_get_insn_details (void)
+   SELF_CHECK (amd64_get_used_input_int_regs (&details, false)
+ 	      == ((1 << EAX_REG_NUM)));
+   SELF_CHECK (rip_relative_offset (&details) == 0);
++
++  /* INSN: lea 0x1e(%rip),%rdi, rex prefix.  */
++  insn = { 0x48, 0x8d, 0x3d, 0x1e, 0x00, 0x00, 0x00 };
++  amd64_get_insn_details (insn.data (), &details);
++  SELF_CHECK (details.opcode_len == 1);
++  SELF_CHECK (details.enc_prefix_offset == 0);
++  SELF_CHECK (details.opcode_offset == 1);
++  SELF_CHECK (details.modrm_offset == 2);
++  SELF_CHECK (amd64_get_used_input_int_regs (&details, false)
++	      == (1 << EDI_REG_NUM));
++  SELF_CHECK (rip_relative_offset (&details) == 3);
+ }
+ 
+ static void

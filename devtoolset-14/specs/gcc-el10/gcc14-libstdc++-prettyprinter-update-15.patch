@@ -1,0 +1,79 @@
+ libstdc++-v3/python/libstdcxx/v6/__init__.py |  2 +-
+ libstdc++-v3/python/libstdcxx/v6/printers.py | 14 +++++++++-----
+ libstdc++-v3/python/libstdcxx/v6/xmethods.py |  2 +-
+ 3 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/libstdc++-v3/python/libstdcxx/v6/__init__.py b/libstdc++-v3/python/libstdcxx/v6/__init__.py
+index f40acd922af..5a8f2de195d 100644
+--- a/libstdc++-v3/python/libstdcxx/v6/__init__.py
++++ b/libstdc++-v3/python/libstdcxx/v6/__init__.py
+@@ -1,4 +1,4 @@
+-# Copyright (C) 2014-2024 Free Software Foundation, Inc.
++# Copyright (C) 2014-2025 Free Software Foundation, Inc.
+ 
+ # This program is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+diff --git a/libstdc++-v3/python/libstdcxx/v6/printers.py b/libstdc++-v3/python/libstdcxx/v6/printers.py
+index 3026de35bbd..5f5963cb595 100644
+--- a/libstdc++-v3/python/libstdcxx/v6/printers.py
++++ b/libstdc++-v3/python/libstdcxx/v6/printers.py
+@@ -1,6 +1,6 @@
+ # Pretty-printers for libstdc++.
+ 
+-# Copyright (C) 2008-2024 Free Software Foundation, Inc.
++# Copyright (C) 2008-2025 Free Software Foundation, Inc.
+ 
+ # This program is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+@@ -623,6 +623,9 @@ class StdBitReferencePrinter(printer_base):
+ 
+     def to_string(self):
+         if not self._val['_M_p']:
++            # PR libstdc++/115098 removed the reference default constructor
++            # that this case relates to. New code should never need this,
++            # but we still handle it for compatibility with old binaries.
+             return 'invalid std::vector<bool>::reference'
+         return bool(self._val['_M_p'].dereference() & (self._val['_M_mask']))
+ 
+@@ -2827,10 +2830,6 @@ def build_libstdcxx_dictionary():
+     # vector<bool>
+     libstdcxx_printer.add_version('std::', 'locale', StdLocalePrinter)
+ 
+-    libstdcxx_printer.add_version('std::', 'integral_constant',
+-                                  StdIntegralConstantPrinter)
+-    libstdcxx_printer.add_version('std::', 'text_encoding',
+-                                  StdTextEncodingPrinter)
+ 
+     if hasattr(gdb.Value, 'dynamic_type'):
+         libstdcxx_printer.add_version('std::', 'error_code',
+@@ -2893,6 +2892,8 @@ def build_libstdcxx_dictionary():
+                                   StdChronoDurationPrinter)
+     libstdcxx_printer.add_version('std::chrono::', 'time_point',
+                                   StdChronoTimePointPrinter)
++    libstdcxx_printer.add_version('std::', 'integral_constant',
++                                  StdIntegralConstantPrinter)
+ 
+     # std::regex components
+     libstdcxx_printer.add_version('std::__detail::', '_State',
+@@ -2968,6 +2969,9 @@ def build_libstdcxx_dictionary():
+     # libstdcxx_printer.add_version('std::chrono::(anonymous namespace)', 'Rule',
+     #                              StdChronoTimeZoneRulePrinter)
+ 
++    # C++26 components
++    libstdcxx_printer.add_version('std::', 'text_encoding',
++                                  StdTextEncodingPrinter)
+     # Extensions.
+     libstdcxx_printer.add_version('__gnu_cxx::', 'slist', StdSlistPrinter)
+ 
+diff --git a/libstdc++-v3/python/libstdcxx/v6/xmethods.py b/libstdc++-v3/python/libstdcxx/v6/xmethods.py
+index 436c866e001..109ca10956a 100644
+--- a/libstdc++-v3/python/libstdcxx/v6/xmethods.py
++++ b/libstdc++-v3/python/libstdcxx/v6/xmethods.py
+@@ -1,6 +1,6 @@
+ # Xmethods for libstdc++.
+ 
+-# Copyright (C) 2014-2024 Free Software Foundation, Inc.
++# Copyright (C) 2014-2025 Free Software Foundation, Inc.
+ 
+ # This program is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by

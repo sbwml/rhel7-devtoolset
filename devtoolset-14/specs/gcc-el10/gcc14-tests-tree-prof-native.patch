@@ -1,0 +1,63 @@
+commit e373a57b07de9290e8e3f6913f4179404f0b886e
+Author: Joseph Myers <josmyers@redhat.com>
+Date:   Mon Jan 26 16:49:29 2026 +0000
+
+    testsuite: Make profopt-execute also copy profile data for dg-additional-sources
+    
+    Most gcc.dg/tree-prof tests work correctly in environments where .gcda
+    files from the first run need to be copied from the target, because
+    there is existing code in profopt-execute to do so.  A few tests using
+    dg-additional-sources fail because that code only copies the .gcda
+    file for the main test source file.  Add similar code to copy it for
+    any sources listed in dg-additional-sources as well.
+    
+    The use of additional_sources_used is consistent with what
+    profopt-target-cleanup does.  It turns out to require the added call
+    to cleanup-after-saved-dg-test to avoid additional_sources_used
+    leaking from one test into the next.
+    
+    Tested for x86_64-pc-linux-gnu to make sure native testing isn't
+    broken, and with cross to aarch64-linux.
+    
+            * lib/profopt.exp (profopt-execute): Also copy profile data from
+            target for additional sources.  Call cleanup-after-saved-dg-test
+            before normal return.
+
+diff --git a/gcc/testsuite/lib/profopt.exp b/gcc/testsuite/lib/profopt.exp
+index 3188ba8a5348..c9f5ae53d499 100644
+--- a/gcc/testsuite/lib/profopt.exp
++++ b/gcc/testsuite/lib/profopt.exp
+@@ -312,6 +312,7 @@ proc profopt-execute { src } {
+     global generate_final_code use_final_code
+     global verbose
+     global testname_with_flags
++    global additional_sources_used
+ 
+     if ![info exists profile_option] {
+         error "No profile option specified for first compile."
+@@ -474,6 +475,19 @@ proc profopt-execute { src } {
+ 		    set missing_file 1
+ 		    fail "$testcase execution: file $bprefix$base.$ext does not exist, $option $profile_option"
+ 		}
++		if [info exists additional_sources_used] {
++		    foreach srcfile $additional_sources_used {
++			set add_basename [file tail $srcfile]
++			set add_base [file rootname $add_basename]
++			remote_upload target $tmpdir/$bprefix$add_base.$ext
++			set files [glob -nocomplain $bprefix$add_base.$ext]
++			if { $files == "" } {
++			    set status "fail"
++			    set missing_file 1
++			    fail "$testcase execution: file $bprefix$add_base.$ext does not exist, $option $profile_option"
++			}
++		    }
++		}
+ 	    }
+ 	}
+         if { $missing_file == 0 } {
+@@ -606,4 +620,5 @@ proc profopt-execute { src } {
+ 	}
+     }
+     unset testname_with_flags
++    cleanup-after-saved-dg-test
+ }
