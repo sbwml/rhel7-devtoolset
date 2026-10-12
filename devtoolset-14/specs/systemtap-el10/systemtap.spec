@@ -310,12 +310,14 @@ URL: https://sourceware.org/systemtap/
 Recommends: (kernel-debug-devel if kernel-debug)
 Recommends: (kernel-devel if kernel)
 %else
+%if 0%{!?scl:1}
 Requires: kernel-devel-uname-r
+%endif
 %endif
 
 Requires: gcc make
 # for compiling --runtime=dyninst sripts, need elfutils headers, bz1930973
-Requires: elfutils-devel >= %{elfutils_version}
+Requires: %{?scl_prefix}elfutils-devel >= %{elfutils_version}
 
 Conflicts: systemtap-client < %{version}-%{release}
 Conflicts: systemtap-server < %{version}-%{release}
