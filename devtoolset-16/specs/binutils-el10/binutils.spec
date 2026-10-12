@@ -126,7 +126,11 @@ URL: https://sourceware.org/binutils
 # Default: build binutils-gprofng package.
 %bcond_without gprofng
 # Default: use the system supplied version of the zlib compression library.
+%if 0%{?rhel} <= 7
+%bcond_with systemzlib
+%else
 %bcond_without systemzlib
+%endif
 # Default: run the testsuites.
 %bcond_without testsuite
 # Default: use the xxhash-devel library.
