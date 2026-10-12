@@ -315,7 +315,11 @@ Requires: kernel-devel-uname-r
 %endif
 %endif
 
+%if 0%{?scl:1}
+Requires: %{?scl_prefix}gcc %{?scl_prefix}make
+%else
 Requires: gcc make
+%endif
 # for compiling --runtime=dyninst sripts, need elfutils headers, bz1930973
 Requires: %{?scl_prefix}elfutils-devel >= %{elfutils_version}
 

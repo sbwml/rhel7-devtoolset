@@ -269,6 +269,7 @@ BuildRequires: elfutils-debuginfod
 BuildRequires: make gmp-devel
 
 %{?scl:Requires:%scl_runtime}
+%{?scl:Requires:%{?scl_prefix}binutils}
 
 # FIXME: The text needs to be duplicated to prevent 2 empty heading lines.
 %if 0%{!?scl:1}

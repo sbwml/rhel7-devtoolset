@@ -54,6 +54,7 @@ License: LGPL-2.1-or-later
 Summary: Header files for compiling programs with Dyninst
 Group: Development/System
 Requires: %{?scl_prefix}dyninst = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-devel
 Requires: boost-devel
 Requires: tbb-devel
 License: LGPL-2.1-or-later AND BSD-3-Clause AND MIT
@@ -115,11 +116,13 @@ mv %{buildroot}/%{_libdir}/dyninst/cmake/Dyninst %{buildroot}/%{_libdir}/cmake/D
 # this is a testsuite-like binary, not needed in main package
 rm -f "%{buildroot}%{_bindir}/parseThat"
 
+%if 0%{!?scl:1}
 mkdir -p %{buildroot}/etc/ld.so.conf.d
 echo "%{_libdir}/dyninst" > %{buildroot}/etc/ld.so.conf.d/%{name}-%{_arch}.conf
 
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
+%endif
 
 %files
 %dir %{_libdir}/dyninst
@@ -131,7 +134,9 @@ echo "%{_libdir}/dyninst" > %{buildroot}/etc/ld.so.conf.d/%{name}-%{_arch}.conf
 %doc %{dyninst_base}/COPYRIGHT
 %doc %{dyninst_base}/LICENSE.md
 
+%if 0%{!?scl:1}
 %config(noreplace) /etc/ld.so.conf.d/*
+%endif
 
 %files doc
 %doc %{dyninst_base}/dataflowAPI/doc/dataflowAPI.pdf

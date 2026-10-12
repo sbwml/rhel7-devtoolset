@@ -328,10 +328,14 @@ Requires: %{?scl_prefix}cpp = %{version}-%{release}
 # Need binutils that support -plugin
 # Need binutils that support .loc view >= 2.30
 # Need binutils which support --generate-missing-build-notes=yes >= 2.31
+%if 0%{?scl:1}
+Requires: %{?scl_prefix}binutils >= 2.31
+%else
 %if 0%{?fedora} >= 29 || 0%{?rhel} > 7
 Requires: binutils >= 2.31
 %else
 Requires: binutils >= 2.24
+%endif
 %endif
 # Make sure gdb will understand DW_FORM_strp
 Conflicts: gdb < 5.1-2
@@ -352,7 +356,11 @@ Requires: %{?scl_prefix}libgcc >= %{version}-%{release}
 %endif
 Requires: %{?scl_prefix}libgomp = %{version}-%{release}
 # lto-wrapper invokes make
+%if 0%{?scl:1}
+Requires: %{?scl_prefix}make
+%else
 Requires: make
+%endif
 %if !%{build_ada}
 Obsoletes: gcc-gnat < %{version}-%{release}
 %endif
