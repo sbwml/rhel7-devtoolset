@@ -1,0 +1,219 @@
+--- libstdc++-v3/src/nonshared98/extfloat.S.jj	2026-08-05 17:04:25.222489107 +0200
++++ libstdc++-v3/src/nonshared98/extfloat.S	2026-08-05 17:07:06.027857743 +0200
+@@ -106,7 +106,7 @@
+ #define STRING .string
+ #endif
+ 
+-#if defined __x86_64__ || defined __i386__ || defined __aarch64__
++#if defined __x86_64__ || defined __i386__ || defined __aarch64__ || defined __s390x__
+ 	.weak	SYM(_ZTIPKDF16_)
+ 	SECTION1(_ZTIPKDF16_)
+ 	ALIGN1
+--- libstdc++-v3/src/nonshared98/extfloat140.S.jj	2026-08-05 17:07:19.813692552 +0200
++++ libstdc++-v3/src/nonshared98/extfloat140.S	2026-08-05 17:08:06.441133827 +0200
+@@ -0,0 +1,165 @@
++/* Copyright (C) 2012-2026 Free Software Foundation, Inc.
++
++   This file is part of the GNU ISO C++ Library.  This library is free
++   software; you can redistribute it and/or modify it under the
++   terms of the GNU General Public License as published by the
++   Free Software Foundation; either version 3, or (at your option)
++   any later version.
++
++   This library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   Under Section 7 of GPL version 3, you are granted additional
++   permissions described in the GCC Runtime Library Exception, version
++   3.1, as published by the Free Software Foundation.
++
++   You should have received a copy of the GNU General Public License and
++   a copy of the GCC Runtime Library Exception along with this program;
++   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++   <http://www.gnu.org/licenses/>.  */
++
++#ifdef __i386__
++#define ALIGN1	.align 4
++#elif defined __x86_64__
++#define ALIGN1	.align 32
++#define ALIGN2	.align 16
++#elif defined __ia64__
++#define ALIGN1	.align 8
++#define ALIGN3	.align 8
++#define SECTION3(x).section .gnu.linkonce.s.x,"aws",@progbits
++#define POINTER	data8
++#define FLAGS data4
++#define PAD .skip 4
++#define STRING stringz
++#elif defined __powerpc64__
++#define ALIGN1	.align 3
++#define ALIGN3	.align 3
++#elif defined __powerpc__
++#define ALIGN1	.align 2
++#define ALIGN3	.align 2
++#define SECTION2(x).section .gnu.linkonce.s.x,"aw",@progbits
++#define SECTION3(x)SECTION2(x)
++#elif defined __aarch64__
++#define ALIGN1	.align 3
++#define ALIGN3	.align 3
++#define POINTER	.xword
++#define FLAGS	.word
++#define OBJECT	%object
++#elif defined __s390x__
++#define ALIGN1	.align 8
++#define ALIGN3	.align 2
++#elif defined __s390__
++#define ALIGN1	.align 4
++#define ALIGN3	.align 2
++#endif
++#if defined __x86_64__ || defined __powerpc64__ || defined __s390x__ || defined __ia64__ || defined __aarch64__
++#define SIZE1	32
++#define SIZE2	16
++#define OFF	16
++#ifndef POINTER
++#define POINTER	.quad
++#endif
++#ifndef FLAGS
++#define FLAGS .long
++#endif
++#ifndef PAD
++#define PAD .zero 4
++#endif
++#else
++#define SIZE1	16
++#define SIZE2	8
++#define OFF	8
++#ifndef POINTER
++#define POINTER	.long
++#endif
++#ifndef FLAGS
++#define FLAGS .long
++#endif
++#ifndef PAD
++#define PAD
++#endif
++#endif
++#ifndef SYM
++#define SYM(x)x
++#endif
++#ifndef ALIGN2
++#define ALIGN2 ALIGN1
++#endif
++#ifndef ALIGN3
++#define ALIGN3
++#endif
++#ifndef OBJECT
++#define OBJECT @object
++#endif
++#ifndef SECTION1
++#define SECTION1(x).section .gnu.linkonce.d.rel.ro.x,"aw",@progbits
++#endif
++#ifndef SECTION2
++#define SECTION2(x)SECTION1(x)
++#endif
++#ifndef SECTION3
++#define SECTION3(x).section .gnu.linkonce.r.x,"a",@progbits
++#endif
++#ifndef STRING
++#define STRING .string
++#endif
++
++#if defined __s390x__
++	.weak	SYM(_ZTIPKDF16_)
++	SECTION1(_ZTIPKDF16_)
++	ALIGN1
++	.type	SYM(_ZTIPKDF16_), OBJECT
++	.size	SYM(_ZTIPKDF16_), SIZE1
++_ZTIPKDF16_:
++	POINTER	SYM(_ZTVN10__cxxabiv119__pointer_type_infoE)+OFF
++	POINTER	SYM(_ZTSPKDF16_)
++	FLAGS	1
++	PAD
++	POINTER	SYM(_ZTIDF16_)
++	.weak	SYM(_ZTIPDF16_)
++	SECTION1(_ZTIPDF16_)
++	ALIGN1
++	.type	SYM(_ZTIPDF16_), OBJECT
++	.size	SYM(_ZTIPDF16_), SIZE1
++_ZTIPDF16_:
++	POINTER	SYM(_ZTVN10__cxxabiv119__pointer_type_infoE)+OFF
++	POINTER	SYM(_ZTSPDF16_)
++	FLAGS	0
++	PAD
++	POINTER	SYM(_ZTIDF16_)
++	.weak	SYM(_ZTIDF16_)
++	SECTION2(_ZTIDF16_)
++	ALIGN2
++	.type	SYM(_ZTIDF16_), OBJECT
++	.size	SYM(_ZTIDF16_), SIZE2
++_ZTIDF16_:
++	POINTER	SYM(_ZTVN10__cxxabiv123__fundamental_type_infoE)+OFF
++	POINTER	SYM(_ZTSDF16_)
++	.weak	SYM(_ZTSPKDF16_)
++	.hidden	SYM(_ZTSPKDF16_)
++	SECTION3(_ZTSPKDF16_)
++	ALIGN3
++	.type	SYM(_ZTSPKDF16_), OBJECT
++	.size	SYM(_ZTSPKDF16_), 8
++_ZTSPKDF16_:
++	STRING	"PKDF16_"
++	.weak	SYM(_ZTSPDF16_)
++	.hidden	SYM(_ZTSPDF16_)
++	SECTION3(_ZTSPDF16_)
++	ALIGN3
++	.type	SYM(_ZTSPDF16_), OBJECT
++	.size	SYM(_ZTSPDF16_), 7
++_ZTSPDF16_:
++	STRING	"PDF16_"
++	.weak	SYM(_ZTSDF16_)
++	.hidden	SYM(_ZTSDF16_)
++	SECTION3(_ZTSDF16_)
++	ALIGN3
++	.type	SYM(_ZTSDF16_), OBJECT
++	.size	SYM(_ZTSDF16_), 6
++_ZTSDF16_:
++	STRING	"DF16_"
++#endif
++	.section	.note.GNU-stack,"",@progbits
+--- libstdc++-v3/src/nonshared98/Makefile.am.jj	2026-08-05 17:04:25.222836129 +0200
++++ libstdc++-v3/src/nonshared98/Makefile.am	2026-08-05 17:08:35.235788792 +0200
+@@ -44,7 +44,7 @@ sources80 = \
+ 	char8_t-rtti.S \
+ 	ios_failure.cc
+ sources110 =
+-sources140 =
++sources140 = extfloat140.S
+ 
+ vpath % $(top_srcdir)/src/nonshared98
+ vpath % $(top_srcdir)
+--- libstdc++-v3/src/nonshared98/Makefile.in.jj	2026-08-05 17:04:25.222951026 +0200
++++ libstdc++-v3/src/nonshared98/Makefile.in	2026-08-05 17:08:58.493735245 +0200
+@@ -134,13 +134,14 @@ am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+ am__v_lt_0 = --silent
+ am__v_lt_1 = 
+ libnonshared98convenience140_la_LIBADD =
+-am_libnonshared98convenience140_la_OBJECTS = $(am__objects_2)
++am__objects_3 = extfloat140.lo
++am_libnonshared98convenience140_la_OBJECTS = $(am__objects_3)
+ libnonshared98convenience140_la_OBJECTS =  \
+ 	$(am_libnonshared98convenience140_la_OBJECTS)
+ libnonshared98convenience80_la_LIBADD =
+-am__objects_3 = char8_t-rtti.lo ios_failure.lo
++am__objects_4 = char8_t-rtti.lo ios_failure.lo
+ am_libnonshared98convenience80_la_OBJECTS = $(am__objects_1) \
+-	$(am__objects_3)
++	$(am__objects_4)
+ libnonshared98convenience80_la_OBJECTS =  \
+ 	$(am_libnonshared98convenience80_la_OBJECTS)
+ AM_V_P = $(am__v_P_@AM_V@)
+@@ -493,7 +494,7 @@ sources80 = \
+ 	ios_failure.cc
+ 
+ sources110 = 
+-sources140 = 
++sources140 = extfloat140.S
+ libnonshared98convenience80_la_SOURCES = $(sources) $(sources80)
+ libnonshared98convenience110_la_SOURCES = $(sources) $(sources110)
+ libnonshared98convenience140_la_SOURCES = $(sources140)

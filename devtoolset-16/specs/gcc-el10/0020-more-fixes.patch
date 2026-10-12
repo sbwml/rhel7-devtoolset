@@ -1,0 +1,10 @@
+--- a/gcc/testsuite/gcc.dg/tree-ssa/ssa-dom-thread-7.c
++++ b/gcc/testsuite/gcc.dg/tree-ssa/ssa-dom-thread-7.c
+@@ -12,7 +12,6 @@
+    jump threading opportunities.  Skip the later tests on aarch64.  */
+ /* { dg-final { scan-tree-dump-not "Jumps threaded"  "dom3" { target { ! aarch64*-*-* } } } } */
+ /* { dg-final { scan-tree-dump "Jumps threaded: 12"  "thread2" { target { ! aarch64*-*-* } } } } */
+-/* { dg-final { scan-tree-dump "Jumps threaded: 12"  "thread2" { target { aarch64*-*-* } } } } */
+ 
+ enum STATE {
+   S0=0,

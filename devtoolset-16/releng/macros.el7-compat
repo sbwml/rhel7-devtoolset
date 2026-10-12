@@ -1,0 +1,66 @@
+# devtoolset-16 compatibility macros for CentOS 7 / RPM 4.11
+# Copied to /etc/rpm/macros.devtoolset-16-compat during setup_dirs.
+
+%el7 1
+%rhel 7
+%dist .el7
+%devtoolset_16 1
+
+%_missing_doc_files_terminate_build 0
+%_unpackaged_files_terminate_build 0
+
+# Disable post-install scripts unavailable or failing on EL7
+%__brp_mangle_shebangs %{nil}
+%__brp_python_bytecompile %{nil}
+%__brp_scl_python_bytecompile %{nil}
+%__python /bin/true
+
+%__brp_strip_static_archive %{nil}
+%__brp_ldconfig %{nil}
+%__brp_check_rpaths %{nil}
+%__brp_strip_comment_note %{nil}
+%__brp_strip %{nil}
+%__jar_repack %{nil}
+
+# Backport %set_build_flags from RHEL 8+ for %build execution
+%set_build_flags %{expand:RPM_SOURCE_DIR="%{_sourcedir}" ; export RPM_SOURCE_DIR ; RPM_BUILD_DIR="%{_builddir}" ; export RPM_BUILD_DIR ; RPM_OPT_FLAGS="%{optflags}" ; export RPM_OPT_FLAGS ; RPM_LD_FLAGS="%{?__global_ldflags}" ; export RPM_LD_FLAGS ; RPM_ARCH="%{_target_cpu}" ; export RPM_ARCH ; RPM_OS="linux" ; export RPM_OS ; RPM_DOC_DIR="%{_docdir}" ; export RPM_DOC_DIR ;}
+
+# Disable debuginfo package generation
+%debug_package %{nil}
+%_enable_debug_packages 0
+%__debug_install_post %{nil}
+%__os_install_post %{expand:%{nil}}
+
+# Parallel compilation
+%_smp_mflags -j%{_smp_ncpus}
+%_smp_ncpus 4
+
+# RPM < 4.17 bcond shims
+%bcond_with() %{expand:%{lua:rpm.define("without_"..rpm.expand("%*").." 1")}}
+%bcond_without() %{expand:%{lua:rpm.define("with_"..rpm.expand("%*").." 1")}}
+
+# RPM 4.11 ldconfig_scriptlets shims
+%ldconfig_scriptlets %{nil}
+%ldconfig_post %{nil}
+%ldconfig_postun %{nil}
+
+# Systemd RPM macro shims for EL7
+%systemd_post() %{expand:if [ $1 -eq 1 ] ; then /usr/bin/systemctl preset %1 >/dev/null 2>&1 || : ; fi}
+%systemd_postun() %{nil}
+%systemd_postun_with_restart() %{nil}
+%systemd_preun() %{nil}
+%systemd_requires %{nil}
+%systemd_ordering %{nil}
+%systemd_soft_restart() %{nil}
+%_unitdir %{?_scl_root}/usr/lib/systemd/system
+%_presetdir %{?_scl_root}/usr/lib/systemd/system-preset
+%_tmpfilesdir %{?_scl_root}/usr/lib/tmpfiles.d
+%_rpmmacrodir %{?_scl_root}/usr/lib/rpm/macros.d
+
+# RHEL 8+ build_*flags shims
+%build_cflags %{optflags}
+%build_cxxflags %{optflags}
+%build_fflags %{optflags}
+%build_ldflags %{?__global_ldflags}
+
+%__python3 /usr/bin/python3

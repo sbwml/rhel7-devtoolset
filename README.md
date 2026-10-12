@@ -1,40 +1,58 @@
-# devtoolset-14 (GCC 14.3.1 for CentOS 7 / RHEL 7)
+# Red Hat Developer Toolset for CentOS 7 / RHEL 7
 
-A Software Collection (SCL) packaging of the GCC 14 toolchain for CentOS 7 and RHEL 7 (x86_64).
+Software Collection (SCL) packaging of modern GCC toolchains for CentOS 7 and RHEL 7 (x86_64).
 
-Upstream component versions and patches are aligned with the **Rocky Linux 10 (EL10)** baseline and backported to run under CentOS 7's RPM 4.11 and glibc 2.17 environment.
+This repository provides backports for:
+- **devtoolset-16**: GCC 16.2.1 toolchain, based on **CentOS Stream 10 (EL10)** `gcc-toolset-16`.
+- **devtoolset-14**: GCC 14.3.1 toolchain and complete userland diagnostics suite, based on **Rocky Linux 10 (EL10)**.
 
-- **Target Platform**: CentOS 7 / RHEL 7 (x86_64)
-- **SCL Name**: `devtoolset-14`
-- **Installation Root**: `/opt/rh/devtoolset-14/root`
-- **Environment Entry**: `scl enable devtoolset-14 bash`
-- **Deliverables**: Binary RPMs, Source RPMs (SRPMs), and standalone release tarball
+Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runtime environment.
+
+---
+
+## Toolset Overview
+
+| Feature | devtoolset-16 | devtoolset-14 |
+|---|---|---|
+| **GCC Version** | 16.2.1 | 14.3.1 |
+| **Binutils Version** | 2.46 | 2.41 |
+| **Upstream Baseline** | CentOS Stream 10 (`gcc-toolset-16`) | Rocky Linux 10 (`gcc-14`) |
+| **SCL Name** | `devtoolset-16` | `devtoolset-14` |
+| **Installation Root** | `/opt/rh/devtoolset-16/root` | `/opt/rh/devtoolset-14/root` |
+| **Environment Entry** | `scl enable devtoolset-16 bash` | `scl enable devtoolset-14 bash` |
+| **Bootstrap Compiler**| `devtoolset-14` | `devtoolset-12` |
 
 ---
 
 ## Component Matrix
 
-Component versions match the EL10 distribution packages:
+### devtoolset-16 (EL10 gcc-toolset-16 Baseline)
 
-| Component | Version | Upstream Repo | Package Name |
+| Component | Version | Upstream SRPM | Package Name |
 |---|---|---|---|
-| GCC (C, C++, Fortran) | 14.3.1 | BaseOS | `devtoolset-14-gcc` |
-| Binutils | 2.41 | BaseOS | `devtoolset-14-binutils` |
-| Make | 4.4.1 | BaseOS | `devtoolset-14-make` |
-| Elfutils | 0.194 | BaseOS | `devtoolset-14-elfutils` |
-| Strace | 6.12 | BaseOS | `devtoolset-14-strace` |
-| Annobin | 13.02 | AppStream | `devtoolset-14-annobin` |
-| DWZ | 0.16 | AppStream | `devtoolset-14-dwz` |
-| Dyninst | 13.0.0 | AppStream | `devtoolset-14-dyninst` |
-| GDB | 16.3 | AppStream | `devtoolset-14-gdb` |
-| Ltrace | 0.7.91 | AppStream | `devtoolset-14-ltrace` |
-| SystemTap | 5.4 | AppStream | `devtoolset-14-systemtap` |
-| Valgrind | 3.26.0 | AppStream | `devtoolset-14-valgrind` |
+| GCC (C, C++, Fortran) | 16.2.1 | `gcc-toolset-16-gcc-16.2.1-1.2.el10.src.rpm` | `devtoolset-16-gcc` |
+| Binutils | 2.46 | `gcc-toolset-16-binutils-2.46-3.el10.src.rpm` | `devtoolset-16-binutils` |
+| Metapackages | 16.0 | `gcc-toolset-16-16.0-1.el10.src.rpm` | `devtoolset-16` |
+
+For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-16/releng/EL10-BASELINE.md).
+
+### devtoolset-14 (EL10 Baseline)
+
+| Component | Version | Upstream SRPM | Package Name |
+|---|---|---|---|
+| GCC (C, C++, Fortran) | 14.3.1 | `gcc-14.3.1-4.4.el10.src.rpm` | `devtoolset-14-gcc` |
+| Binutils | 2.41 | `binutils-2.41-63.el10.src.rpm` | `devtoolset-14-binutils` |
+| Make | 4.4.1 | `make-4.4.1-9.el10.src.rpm` | `devtoolset-14-make` |
+| Elfutils | 0.194 | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | `devtoolset-14-elfutils` |
+| Strace | 6.12 | `strace-6.12-3.el10.src.rpm` | `devtoolset-14-strace` |
+| Annobin | 13.02 | `annobin-13.02-2.el10.src.rpm` | `devtoolset-14-annobin` |
+| DWZ | 0.16 | `dwz-0.16-1.el10.src.rpm` | `devtoolset-14-dwz` |
+| Dyninst | 13.0.0 | `dyninst-13.0.0-1.el10.src.rpm` | `devtoolset-14-dyninst` |
+| GDB | 16.3 | `gdb-16.3-3.el10.src.rpm` | `devtoolset-14-gdb` |
+| Ltrace | 0.7.91 | `ltrace-0.7.91-53.el10.src.rpm` | `devtoolset-14-ltrace` |
+| SystemTap | 5.4 | `systemtap-5.4-3.el10.src.rpm` | `devtoolset-14-systemtap` |
+| Valgrind | 3.26.0 | `valgrind-3.26.0-5.el10.src.rpm` | `devtoolset-14-valgrind` |
 | Metapackages | 14.1 | N/A | `devtoolset-14` |
-
-*Note*: `oprofile` and `memstomp` were deprecated and removed upstream in EL10, so they are omitted here.
-
-For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-14/releng/EL10-BASELINE.md). Component download URLs and source SHA512 checksums are tracked in [pins.env](devtoolset-14/releng/pins.env).
 
 ---
 
@@ -42,31 +60,66 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 
 ### Setting Up the Repository
 
-Configure the YUM repository:
+Configure the YUM repository on CentOS 7 / RHEL 7:
 
 ```bash
 curl -o /etc/yum.repos.d/devtoolset-el7.repo https://el7.cooluc.com/devtoolset-el7.repo
 ```
 
-### Installing Packages
+### Installing devtoolset-16
 
-Install core toolchain components:
+Install the complete suite via the metapackage:
 
 ```bash
-yum install -y devtoolset-14-gcc devtoolset-14-gcc-c++ devtoolset-14-make
+yum install -y devtoolset-16
 ```
 
-Or install the full suite via the metapackage:
+Or install core toolchain packages individually:
+
+```bash
+yum install -y devtoolset-16-gcc devtoolset-16-gcc-c++ devtoolset-16-binutils
+```
+
+#### Enabling devtoolset-16
+
+Enable the collection in your current shell:
+
+```bash
+scl enable devtoolset-16 bash
+```
+
+Verify compiler version:
+
+```bash
+gcc --version
+# gcc (GCC) 16.2.1 ...
+```
+
+Alternatively, source the environment script directly:
+
+```bash
+source /opt/rh/devtoolset-16/enable
+```
+
+---
+
+### Installing devtoolset-14
+
+Install the complete suite via the metapackage:
 
 ```bash
 yum install -y devtoolset-14
 ```
 
-*(Standalone RPM tarballs and individual RPMs are also published under GitHub Releases for offline environments.)*
+Or install core toolchain packages:
 
-### Enabling the Toolchain
+```bash
+yum install -y devtoolset-14-gcc devtoolset-14-gcc-c++ devtoolset-14-make
+```
 
-Enable devtoolset-14 in your current shell:
+#### Enabling devtoolset-14
+
+Enable the collection in your current shell:
 
 ```bash
 scl enable devtoolset-14 bash
@@ -79,7 +132,7 @@ gcc --version
 # gcc (GCC) 14.3.1 20250212 (Red Hat 14.3.1-4)
 ```
 
-Alternatively, source the environment file directly:
+Alternatively, source the environment script directly:
 
 ```bash
 source /opt/rh/devtoolset-14/enable
@@ -92,22 +145,26 @@ source /opt/rh/devtoolset-14/enable
 ```
 .
 ├── .ci/
-│   └── Dockerfile.dts14        # CentOS 7 build container definition
+│   ├── Dockerfile.dts14        # CentOS 7 builder container for devtoolset-14
+│   └── Dockerfile.dts16        # CentOS 7 builder container for devtoolset-16 (uses devtoolset-14)
 ├── .github/
 │   └── workflows/
-│       └── build.yml           # GitHub Actions CI/CD workflow
-└── devtoolset-14/
-    ├── releng/                 # Release engineering scripts and tools
-    │   ├── ci-common.sh        # Shared environment setup and spec patchers
-    │   ├── ci-release.sh       # Full release orchestration script
+│       └── build.yml           # GitHub Actions CI/CD workflow (supports DTS 14 & 16)
+├── devtoolset-14/              # devtoolset-14 release engineering and specs
+│   ├── releng/
+│   └── specs/
+└── devtoolset-16/              # devtoolset-16 release engineering and specs
+    ├── releng/
+    │   ├── ci-common.sh        # Shared environment setup using devtoolset-14 host
+    │   ├── ci-release.sh       # Release orchestration script
     │   ├── el7-compat.py       # Spec compatibility filter for RPM 4.11
-    │   ├── scl-wire.py         # SCL macro injector for EL10 specs
-    │   ├── pins.env            # Upstream source URLs and SHA512 pins
+    │   ├── scl-wire.py         # SCL macro injector
+    │   ├── pins.env            # Upstream source tracking
     │   └── EL10-BASELINE.md    # EL10 SRPM baseline provenance
-    └── specs/                  # Package specifications and patches
-        ├── <comp>-el10/        # Backported EL10 specs, patches, sources
-        ├── automake-el7/       # Automake 1.16 build-time helper
-        └── meta/               # devtoolset-14 metapackages
+    └── specs/
+        ├── binutils-el10/      # Binutils 2.46 spec and patches
+        ├── gcc-el10/           # GCC 16.2.1 spec and patches
+        └── meta/               # devtoolset-16 metapackages
 ```
 
 ---
@@ -116,46 +173,58 @@ source /opt/rh/devtoolset-14/enable
 
 ### Building with GitHub Actions
 
-The repository includes a GitHub Actions workflow (`.github/workflows/build.yml`):
+The GitHub Actions workflow (`.github/workflows/build.yml`) supports building both versions:
 
-1. **Tag Trigger**: Pushing a tag matching `v*` (e.g., `v14.3.1`) triggers a complete toolchain build, packages `devtoolset-14-<tag>-rpms.tar.gz`, calculates SHA-256 sums, and publishes a new GitHub Release.
+1. **Tag Trigger**:
+   - Pushing tags matching `v16*` (e.g. `v16.2.1`) triggers the `devtoolset-16` build and release.
+   - Pushing tags matching `v14*` (e.g. `v14.3.1`) triggers the `devtoolset-14` build and release.
 2. **Manual Trigger (`workflow_dispatch`)**:
-   - `target`: `release` (full build), `deps` (all dependencies), `gcc` (GCC only), `component` (single component), or `meta` (metapackages).
-   - `component`: Name of the component to build when target is set to `component`.
+   - `version`: Choose `16` or `14` (default `16`).
+   - `target`: `release` (full toolchain), `deps` (dependencies), `gcc` (GCC only), `component` (single component), or `meta` (metapackages).
+   - `component`: Name of the component when target is set to `component`.
    - `publish_release`: Boolean flag to publish artifacts to GitHub Releases.
 
 ### Building Locally with Docker
 
-Prerequisites: Docker with access to CentOS 7 mirror repositories.
+Prerequisites: Docker with access to CentOS 7 mirror repositories and `el7.cooluc.com`.
+
+#### Build devtoolset-16
 
 ```bash
-# 1. Build the CentOS 7 builder container
+# 1. Build the builder image (pre-installs devtoolset-14)
+docker build -t dts16-builder -f .ci/Dockerfile.dts16 .ci
+
+# 2. Build the full devtoolset-16 release
+docker run --rm \
+  -v "$PWD:/workspace" \
+  -v "$PWD/out:/out" \
+  -e RELEASE_TAG=16.2.1 \
+  dts16-builder bash /workspace/devtoolset-16/releng/ci-release.sh
+```
+
+#### Build devtoolset-14
+
+```bash
+# 1. Build the builder image (bootstraps with devtoolset-12)
 docker build -t dts14-builder -f .ci/Dockerfile.dts14 .ci
 
-# 2. Build the full toolchain and release archive
+# 2. Build the full devtoolset-14 release
 docker run --rm \
   -v "$PWD:/workspace" \
   -v "$PWD/out:/out" \
   -e RELEASE_TAG=14.3.1 \
   dts14-builder bash /workspace/devtoolset-14/releng/ci-release.sh
-
-# 3. Build a specific component (e.g. make)
-docker run --rm \
-  -v "$PWD:/workspace" \
-  -v "$PWD/out:/out" \
-  -e COMPS="make" \
-  -e RELEASE=0 \
-  dts14-builder bash /workspace/devtoolset-14/releng/ci-release.sh
 ```
-
-Built RPMs are placed in `out/rpms/`, SRPMs in `out/srpms/`, and build logs in `out/logs/`.
 
 ---
 
-## Technical Notes & Implementation Details
+## Technical Notes
 
-1. **Bootstrap Compiler**: Stock CentOS 7 provides GCC 4.8.5, which cannot compile GCC 14 (requires C++17 host compiler). The build container bootstraps using `devtoolset-12` (GCC 12) from EPEL 7 / Copr.
-2. **RPM 4.11 Compatibility**: Upstream EL10 specs utilize modern RPM 4.19+ constructs (`%autochangelog`, `%autorelease`, `%patch -P`, `%patchN`, boolean dependency syntax, and `<lua>` scriptlets). `el7-compat.py` and `macros.el7-compat` rewrite these constructs into forms compatible with RPM 4.11.
-3. **SCL Namespace Injection**: `scl-wire.py` prefixes packages with `devtoolset-14-`, injects `%scl_package` macros, adjusts install prefixes to `/opt/rh/devtoolset-14/root`, and sets up alternative file paths.
-4. **Glibc 2.17 Compatibility**: Modern components expecting glibc >= 2.28 features have compatibility shims applied (e.g. `dyninst-elf-compat.h` for missing ELF header definitions; boost header overlays for dyninst C++17 requirements).
-5. **Single-Stage Build**: GCC 14 is built with `--disable-bootstrap` using the devtoolset-12 host compiler to keep compilation within CI timeouts while generating production-quality binaries.
+1. **Bootstrap Toolchain**:
+   - GCC 16 requires a modern C++ host compiler with C++17 support. `devtoolset-16` utilizes `devtoolset-14` as the host bootstrap compiler from `https://el7.cooluc.com/devtoolset-el7.repo`.
+2. **Single-Stage Build**:
+   - GCC 16 builds with `--disable-bootstrap` under the verified `devtoolset-14` host compiler to fit execution within CI timeouts.
+3. **RPM 4.11 Compatibility**:
+   - Upstream EL10 specs utilize RPM 4.19+ constructs (`%autochangelog`, `%autorelease`, `%patch -P`, `%patchN`, boolean dependency syntax). `el7-compat.py` and `macros.el7-compat` rewrite these constructs into forms compatible with RPM 4.11.
+4. **SCL Isolation**:
+   - All files are installed under `/opt/rh/devtoolset-16/root`. Sanitizer runtime libraries and GCC support libraries are strictly contained within SCL library directories.

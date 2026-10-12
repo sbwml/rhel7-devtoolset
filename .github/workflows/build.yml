@@ -6,6 +6,14 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Devtoolset version (14 or 16)'
+        required: true
+        default: '16'
+        type: choice
+        options:
+          - '16'
+          - '14'
       target:
         description: 'Build target'
         required: true
@@ -23,9 +31,9 @@ on:
         default: ''
         type: string
       release_tag:
-        description: 'Release version tag'
+        description: 'Release version tag (default: 16.2.1 for DTS16, 14.3.1 for DTS14)'
         required: false
-        default: '14.3.1'
+        default: ''
         type: string
       publish_release:
         description: 'Publish to GitHub Releases (target must be release)'
@@ -43,7 +51,7 @@ permissions:
 
 jobs:
   build:
-    name: Build devtoolset-14
+    name: Build devtoolset
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -51,25 +59,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker builder image
-        uses: docker/build-push-action@v6
-        with:
-          context: .ci
-          file: .ci/Dockerfile.dts14
-          load: true
-          tags: dts14-builder:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Configure build parameters
         id: params
         run: |
           set -eu
           if [ "${{ github.event_name }}" = "push" ]; then
             RAW_TAG="${GITHUB_REF_NAME}"
+            case "$RAW_TAG" in
+              v14*) DTS_VERSION="14" ;;
+              *)    DTS_VERSION="16" ;;
+            esac
             case "$RAW_TAG" in
               v*) TAG_NAME="$RAW_TAG"; RELEASE_TAG="${RAW_TAG#v}" ;;
               *)  TAG_NAME="v$RAW_TAG"; RELEASE_TAG="$RAW_TAG" ;;
@@ -80,8 +79,16 @@ jobs:
             COMPS=""
             DO_RELEASE="1"
           else
+            DTS_VERSION="${{ inputs.version }}"
             TARGET="${{ inputs.target }}"
             RAW_TAG="${{ inputs.release_tag }}"
+            if [ -z "$RAW_TAG" ]; then
+              if [ "$DTS_VERSION" = "16" ]; then
+                RAW_TAG="16.2.1"
+              else
+                RAW_TAG="14.3.1"
+              fi
+            fi
             case "$RAW_TAG" in
               v*) TAG_NAME="$RAW_TAG"; RELEASE_TAG="${RAW_TAG#v}" ;;
               *)  TAG_NAME="v$RAW_TAG"; RELEASE_TAG="$RAW_TAG" ;;
@@ -94,7 +101,11 @@ jobs:
                 DO_RELEASE="1"
                 ;;
               deps)
-                COMPS="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
+                if [ "$DTS_VERSION" = "16" ]; then
+                  COMPS="binutils"
+                else
+                  COMPS="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
+                fi
                 DO_RELEASE="0"
                 ;;
               gcc)
@@ -120,6 +131,7 @@ jobs:
             esac
           fi
 
+          echo "dts_version=$DTS_VERSION" >> "$GITHUB_OUTPUT"
           echo "target=$TARGET" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
@@ -127,6 +139,19 @@ jobs:
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "comps=$COMPS" >> "$GITHUB_OUTPUT"
           echo "do_release=$DO_RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker builder image
+        uses: docker/build-push-action@v6
+        with:
+          context: .ci
+          file: .ci/Dockerfile.dts${{ steps.params.outputs.dts_version }}
+          load: true
+          tags: dts${{ steps.params.outputs.dts_version }}-builder:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build RPMs
         run: |
@@ -137,7 +162,8 @@ jobs:
             -e RELEASE_TAG="${{ steps.params.outputs.release_tag }}" \
             -e RELEASE="${{ steps.params.outputs.do_release }}" \
             -e COMPS="${{ steps.params.outputs.comps }}" \
-            dts14-builder:latest bash -c "bash /workspace/devtoolset-14/releng/ci-release.sh"
+            dts${{ steps.params.outputs.dts_version }}-builder:latest \
+            bash -c "bash /workspace/devtoolset-${{ steps.params.outputs.dts_version }}/releng/ci-release.sh"
 
       - name: Fix output directory permissions
         if: always()
@@ -150,7 +176,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs-${{ steps.params.outputs.target }}-${{ github.run_id }}
+          name: build-logs-dts${{ steps.params.outputs.dts_version }}-${{ steps.params.outputs.target }}-${{ github.run_id }}
           path: out/logs/
           if-no-files-found: ignore
 
@@ -158,7 +184,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: rpms-${{ steps.params.outputs.target }}-${{ github.run_id }}
+          name: rpms-dts${{ steps.params.outputs.dts_version }}-${{ steps.params.outputs.target }}-${{ github.run_id }}
           path: |
             out/rpms/**/*.rpm
             out/srpms/**/*.rpm
@@ -169,10 +195,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.params.outputs.tag_name }}
-          name: devtoolset-14 ${{ steps.params.outputs.release_tag }}
+          name: devtoolset-${{ steps.params.outputs.dts_version }} ${{ steps.params.outputs.release_tag }}
           draft: false
           prerelease: ${{ steps.params.outputs.prerelease == 'true' }}
           files: |
-            out/devtoolset-14-*.tar.gz
+            out/devtoolset-*.tar.gz
             out/sha256sums.txt
           generate_release_notes: true

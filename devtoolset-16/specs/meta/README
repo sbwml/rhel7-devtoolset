@@ -1,0 +1,28 @@
+Package %{scl_name} is the main package for Red Hat GCC
+Toolset 16.  By installing the %{scl_name} package, you will get
+the working set of packages that are included in Red Hat GCC
+Toolset 16, which includes the compiler and linker.
+
+Usage: %{scl_name}-env [command]
+
+Red Hat GCC Toolset allows you to build and execute applications
+which are not located in the filesystem root hierarchy, but are
+stored in an alternative location, which is %{_scl_root} in case
+of %{scl_name}.
+
+Examples:
+%{scl_name}-env
+  Run an interactive shell wherein %{scl_name} is enabled.
+
+%{scl_name}-env command --arg
+  Run a specific command with the argument --arg within the %{scl_name}
+  Red Hat GCC Toolset environment.
+
+%{scl_name}-env gcc
+  Run GCC from the %{scl_name} Red Hat GCC Toolset.
+
+%{scl_name}-env man gcc
+  Show man pages for the gcc command, which is a part of the
+  %{scl_name} Red Hat GCC Toolset.
+
+Report bugs to <%{dist_bug_report_url}>.

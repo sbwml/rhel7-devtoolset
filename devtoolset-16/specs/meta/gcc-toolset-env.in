@@ -1,0 +1,14 @@
+#!/usr/bin/sh
+# Environment wrapper for GCC Toolset %{gts_ver}
+
+. %{_root_prefix}/lib/gcc-toolset/%{gts_ver}-env.source
+
+if [ -z "$1" ]; then
+  exec /usr/bin/sh
+# Compatibility with `scl enable`, where the entire command shows up as a
+# single argument.
+elif [ -z "$2" ]; then
+  exec sh -c "$@"
+else
+  exec "$@"
+fi

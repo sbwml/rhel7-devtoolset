@@ -1,0 +1,48 @@
+Only in binutils-2.34/gold: autom4te.cache
+diff -rup binutils.orig/gold/configure binutils-2.34/gold/configure
+--- binutils.orig/gold/configure	2020-04-20 12:35:13.048297305 +0100
++++ binutils-2.34/gold/configure	2020-04-20 14:02:06.743725696 +0100
+@@ -5180,7 +5180,8 @@ for targ in $target $canon_targets; do
+     . ${srcdir}/configure.tgt
+ 
+     if test "$targ_obj" = "UNKNOWN"; then
+-      as_fn_error $? "\"unsupported target $targ\"" "$LINENO" 5
++      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: \"unsupported target $targ\"" >&5
++$as_echo "$as_me: WARNING: \"unsupported target $targ\"" >&2;}
+     else
+       targetobjs="$targetobjs ${targ_obj}.\$(OBJEXT)"
+       if test "$targ_extra_obj" != ""; then
+diff -rup binutils.orig/gold/configure.ac binutils-2.34/gold/configure.ac
+--- binutils.orig/gold/configure.ac	2020-04-20 12:35:13.050297291 +0100
++++ binutils-2.34/gold/configure.ac	2020-04-20 14:01:46.435868770 +0100
+@@ -181,7 +181,7 @@ for targ in $target $canon_targets; do
+     . ${srcdir}/configure.tgt
+ 
+     if test "$targ_obj" = "UNKNOWN"; then
+-      AC_MSG_ERROR("unsupported target $targ")
++      AC_MSG_WARN("unsupported target $targ")
+     else
+       targetobjs="$targetobjs ${targ_obj}.\$(OBJEXT)"
+       if test "$targ_extra_obj" != ""; then
+--- binutils.orig/bfd/config.bfd	2020-04-20 12:35:13.038297375 +0100
++++ binutils-2.34/bfd/config.bfd	2020-04-20 14:25:26.452869193 +0100
+@@ -473,7 +473,7 @@ case "${targ}" in
+     ;;
+ 
+ #ifdef BFD64
+-  bpf-*-none)
++  bpf-*-none | bpf-*)
+     targ_defvec=bpf_elf64_le_vec
+     targ_selvecs=bpf_elf64_be_vec
+     targ_underscore=yes
+--- binutils.orig/ld/configure.tgt	2026-01-05 08:51:02.908224792 +0000
++++ binutils-with-gold-2.45.50-be970c68891/ld/configure.tgt	2026-01-05 08:51:55.852677409 +0000
+@@ -255,7 +255,7 @@ bfin-*-uclinux*)	targ_emul=elf32bfin;
+ bfin-*-linux-uclibc*)	targ_emul=elf32bfinfd;
+ 			targ_extra_libpath=elf32bfin
+ 			;;
+-bpf-*-*)		targ_emul=elf64bpf
++bpf-* | bpf-*-*)	targ_emul=elf64bpf
+ 			;;
+ cr16-*-elf*)		targ_emul=elf32cr16
+ 			;;
