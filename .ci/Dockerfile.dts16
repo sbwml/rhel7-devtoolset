@@ -1,6 +1,7 @@
 FROM centos:7
 
-RUN rm -f /etc/yum.repos.d/CentOS-*.repo && \
+RUN mkdir -p /etc/yum/vars && echo "7" > /etc/yum/vars/releasever && \
+    rm -f /etc/yum.repos.d/CentOS-*.repo && \
     cat > /etc/yum.repos.d/cooluc.repo <<'REPO'
 [base]
 name=CentOS-7 - Base
@@ -20,9 +21,17 @@ mirrorlist=http://mirrorlist.cooluc.com/?release=7&arch=$basearch&repo=extras
 gpgcheck=0
 enabled=1
 
+[epel]
+name=EPEL 7
+baseurl=https://mirrors.aliyun.com/epel/7/$basearch/
+        https://archives.fedoraproject.org/pub/archive/epel/7/$basearch/
+failovermethod=priority
+gpgcheck=0
+enabled=1
+
 [devtoolset-14]
-name=Red Hat Developer Toolset 14 CentOS $releasever - $basearch
-baseurl=https://el7.cooluc.com/$releasever/Packages
+name=Red Hat Developer Toolset 14 CentOS 7 - $basearch
+baseurl=https://el7.cooluc.com/7/Packages
 failovermethod=priority
 enabled=1
 gpgcheck=0
@@ -31,11 +40,11 @@ REPO
 RUN yum -y install yum-utils rpm-build createrepo rpmdevtools rpm-sign gnupg2 \
       make wget curl tar xz bzip2 gzip zip unzip cpio which patch diffutils \
       findutils file sed gawk grep glibc-devel glibc-static bison flex m4 \
-      gettext texinfo autoconf automake libtool pkgconfig python3 python2 \
-      perl perl-devel perl-generators scl-utils scl-utils-build sudo \
+      gettext texinfo autoconf automake libtool pkgconfig python3 \
+      perl perl-devel scl-utils scl-utils-build sudo \
       jansson-devel zlib-devel sharutils bc dejagnu libstdc++-static \
-      elfutils-debuginfod-client-devel ncurses-devel readline-devel expat-devel \
-      libstdc++-devel gmp-devel mpfr-devel libmpc-devel isl-devel xz-devel \
+      ncurses-devel readline-devel expat-devel \
+      libstdc++-devel gmp-devel mpfr-devel libmpc-devel xz-devel \
       guile-devel libtool-ltdl-devel help2man iso-codes && \
     yum -y install devtoolset-14 && \
     yum clean all && rm -rf /var/cache/yum

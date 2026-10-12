@@ -10,6 +10,7 @@ SRCDIR="${SRCDIR:-/workspace/devtoolset-16}"
 log() { echo -e "\n\033[1;36m>>> $*\033[0m"; }
 
 setup_repos() {
+  mkdir -p /etc/yum/vars && echo "7" > /etc/yum/vars/releasever
   mkdir -p /etc/yum.repos.d
   rm -f /etc/yum.repos.d/CentOS-*.repo
   cat > /etc/yum.repos.d/cooluc.repo <<REPO
@@ -31,9 +32,17 @@ mirrorlist=${MIRROR}/?release=7&arch=\$basearch&repo=extras
 gpgcheck=0
 enabled=1
 
+[epel]
+name=EPEL 7
+baseurl=https://mirrors.aliyun.com/epel/7/\$basearch/
+        https://archives.fedoraproject.org/pub/archive/epel/7/\$basearch/
+failovermethod=priority
+gpgcheck=0
+enabled=1
+
 [devtoolset-14]
-name=Red Hat Developer Toolset 14 CentOS \$releasever - \$basearch
-baseurl=https://el7.cooluc.com/\$releasever/Packages
+name=Red Hat Developer Toolset 14 CentOS 7 - \$basearch
+baseurl=https://el7.cooluc.com/7/Packages
 failovermethod=priority
 enabled=1
 gpgcheck=0
@@ -51,7 +60,7 @@ install_toolchain() {
     libmpc-devel isl-devel xz-devel guile-devel libtool-ltdl-devel help2man iso-codes >/dev/null 2>&1 || true
 
   log "Installing devtoolset-14 toolchain..."
-  yum -y install devtoolset-14 >/dev/null 2>&1 || true
+  yum -y install devtoolset-14 2>&1 | tail -25 || true
 }
 
 setup_dirs() {
