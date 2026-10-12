@@ -260,8 +260,8 @@ BuildRequires: dejagnu gcc make
 
 
 # Install requirements
-Requires: systemtap-client = %{version}-%{release}
-Requires: systemtap-devel = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-client = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-devel = %{version}-%{release}
 
 %description
 SystemTap is an instrumentation system for systems running Linux.
@@ -275,7 +275,7 @@ the components needed to locally develop and execute systemtap scripts.
 Summary: Instrumentation System Server
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap-devel = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-devel = %{version}-%{release}
 Conflicts: systemtap-devel < %{version}-%{release}
 Conflicts: systemtap-runtime < %{version}-%{release}
 Conflicts: systemtap-client < %{version}-%{release}
@@ -351,7 +351,7 @@ Summary: Programmable system-wide instrumentation system - client
 License: GPL-2.0-or-later AND GPL-2.0-only AND BSD-3-Clause AND LGPL-2.1-only AND GFDL-1.2-or-later AND BSD-2-Clause
 URL: https://sourceware.org/systemtap/
 Requires: zip unzip
-Requires: systemtap-runtime = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime = %{version}-%{release}
 Requires: coreutils grep sed unzip zip
 Requires: openssh-clients
 Conflicts: systemtap-devel < %{version}-%{release}
@@ -375,7 +375,7 @@ subpackage instead.
 Summary: Systemtap Initscripts
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap = %{version}-%{release}
 %if %{with_systemd}
 Requires: systemd
 %else
@@ -397,7 +397,7 @@ License: GPL-2.0-or-later AND CC0-1.0
 URL: https://sourceware.org/systemtap/
 %if 0%{?rhel} && 0%{?rhel} <= 10
 # for RHEL buildability compatibility, pull in sdt-dtrace at all times
-Requires: systemtap-sdt-dtrace = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-sdt-dtrace = %{version}-%{release}
 %endif
 
 %description sdt-devel
@@ -431,9 +431,9 @@ to process related .d files into tracing-macro-laden .h headers.
 Summary: Instrumentation System Testsuite
 License: GPL-2.0-or-later AND GPL-2.0-only AND GPL-3.0-or-later AND MIT
 URL: https://sourceware.org/systemtap/
-Requires: systemtap = %{version}-%{release}
-Requires: systemtap-sdt-devel = %{version}-%{release}
-Requires: systemtap-server = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-sdt-devel = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-server = %{version}-%{release}
 Requires: dejagnu which elfutils grep nc wget
 %if %{with_debuginfod}
 Requires: elfutils-debuginfod
@@ -466,13 +466,13 @@ Requires: avahi
 Requires: crash
 %endif
 %if %{with_java}
-Requires: systemtap-runtime-java = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime-java = %{version}-%{release}
 %endif
 %if %{with_python2_probes}
-Requires: systemtap-runtime-python2 = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime-python2 = %{version}-%{release}
 %endif
 %if %{with_python3_probes}
-Requires: systemtap-runtime-python3 = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime-python3 = %{version}-%{release}
 %endif
 %ifarch x86_64
 %if 0%{?rhel} >= 8 || 0%{?fedora} >= 20
@@ -503,7 +503,7 @@ systemtap on the current system.
 Summary: Systemtap Java Runtime Support
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap-runtime = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime = %{version}-%{release}
 # work around fedora ci gating kvetching about i686<->x86-64 conflicts
 %ifarch x86_64
 Conflicts: systemtap-runtime = %{version}-%{release}.i686
@@ -525,7 +525,7 @@ that probe Java processes running on the OpenJDK runtimes using Byteman.
 Summary: Systemtap Python 2 Runtime Support
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap-runtime = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime = %{version}-%{release}
 
 %description runtime-python2
 This package includes support files needed to run systemtap scripts
@@ -537,7 +537,7 @@ that probe python 2 processes.
 Summary: Systemtap Python 3 Runtime Support
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap-runtime = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime = %{version}-%{release}
 
 %if ! (%{with_python2_probes})
 # Provide an clean upgrade path when the python2 package is removed
@@ -554,7 +554,7 @@ that probe python 3 processes.
 Summary: Systemtap-prometheus interoperation mechanism
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap-runtime = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime = %{version}-%{release}
 
 %description exporter
 This package includes files for a systemd service that manages
@@ -582,7 +582,7 @@ connection.
 Summary: Systemtap Cross-VM Instrumentation - guest
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap-runtime = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap-runtime = %{version}-%{release}
 %if %{with_systemd}
 Requires(post): findutils coreutils
 Requires(preun): grep coreutils
@@ -602,7 +602,7 @@ systemtap-runtime-virthost machine to execute systemtap scripts.
 Summary: ISystemtap jupyter kernel and examples
 License: GPL-2.0-or-later
 URL: https://sourceware.org/systemtap/
-Requires: systemtap = %{version}-%{release}
+Requires: %{?scl_prefix}systemtap = %{version}-%{release}
 
 %description jupyter
 This package includes files needed to build and run

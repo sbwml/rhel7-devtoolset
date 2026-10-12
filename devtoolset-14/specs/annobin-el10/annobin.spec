@@ -201,6 +201,7 @@ correct security hardening options.
 Summary: annobin gcc plugin
 
 Requires: %{name}-docs = %{version}-%{release}
+Provides: %{name} = %{version}-%{release}
 Conflicts: %{name} <= 9.60-1
 BuildRequires: gcc-c++ gcc-plugin-devel
 
@@ -251,9 +252,9 @@ BuildRequires: gcc-c++ gcc-plugin-devel
 # For a gcc plugin gcc is required.
 %if %{with_hard_gcc_version_requirement}
 # BZ 1607430 - There is an exact requirement on the major version of gcc.
-Requires: (gcc >= %{gcc_major} with gcc < %{gcc_next})
+Requires: (%{?scl_prefix}gcc >= %{gcc_major} with %{?scl_prefix}gcc < %{gcc_next})
 %else
-Requires: gcc
+Requires: %{?scl_prefix}gcc
 %endif
 
 # Information about the gcc plugin is recorded in this file.

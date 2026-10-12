@@ -472,7 +472,7 @@ e.g. for exception handling support.
 
 %package c++
 Summary: C++ support for GCC
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 Requires: %{?scl_prefix}libstdc++ = %{version}-%{release}
 Requires: %{?scl_prefix}libstdc++-devel = %{version}-%{release}
 Provides: gcc-g++ = %{version}-%{release}
@@ -501,7 +501,7 @@ C++ Library.
 
 %package -n %{?scl_prefix}libstdc++-devel
 Summary: Header files and libraries for C++ development
-Requires: libstdc++%{?_isa} = %{version}-%{release}
+Requires: %{?scl_prefix}libstdc++%{?_isa} = %{version}-%{release}
 Autoreq: true
 
 %description -n %{?scl_prefix}libstdc++-devel
@@ -527,7 +527,7 @@ for the GNU standard C++ library.
 
 %package objc
 Summary: Objective-C support for GCC
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 Requires: %{?scl_prefix}libobjc = %{version}-%{release}
 Autoreq: true
 
@@ -538,7 +538,7 @@ object-oriented derivative of the C language.
 
 %package objc++
 Summary: Objective-C++ support for GCC
-Requires: gcc-c++ = %{version}-%{release}, gcc-objc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc-c++ = %{version}-%{release}, %{?scl_prefix}gcc-objc = %{version}-%{release}
 Autoreq: true
 
 %description objc++
@@ -554,7 +554,7 @@ Objective-C dynamically linked programs.
 
 %package gfortran
 Summary: Fortran support
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 Requires: %{?scl_prefix}libgfortran = %{version}-%{release}
 %if %{build_libquadmath}
 Requires: %{?scl_prefix}libquadmath = %{version}-%{release}
@@ -584,7 +584,7 @@ Fortran dynamically linked programs.
 %package -n %{?scl_prefix}libgfortran-static
 Summary: Static Fortran libraries
 Requires: %{?scl_prefix}libgfortran = %{version}-%{release}
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 %if %{build_libquadmath}
 Requires: %{?scl_prefix}libquadmath-static = %{version}-%{release}
 %endif
@@ -594,8 +594,8 @@ This package contains static Fortran libraries.
 
 %package gdc
 Summary: D support
-Requires: gcc = %{version}-%{release}
-Requires: libgphobos = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
+Requires: %{?scl_prefix}libgphobos = %{version}-%{release}
 Provides: gcc-d = %{version}-%{release}
 Provides: gdc = %{version}-%{release}
 Autoreq: true
@@ -614,16 +614,16 @@ D dynamically linked programs.
 
 %package -n %{?scl_prefix}libgphobos-static
 Summary: Static D libraries
-Requires: libgphobos = %{version}-%{release}
-Requires: gcc-gdc = %{version}-%{release}
+Requires: %{?scl_prefix}libgphobos = %{version}-%{release}
+Requires: %{?scl_prefix}gcc-gdc = %{version}-%{release}
 
 %description -n %{?scl_prefix}libgphobos-static
 This package contains static D libraries.
 
 %package gm2
 Summary: Modula-2 support
-Requires: gcc = %{version}-%{release}
-Requires: libgm2 = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
+Requires: %{?scl_prefix}libgm2 = %{version}-%{release}
 Provides: gcc-m2 = %{version}-%{release}
 Provides: gm2 = %{version}-%{release}
 Autoreq: true
@@ -642,8 +642,8 @@ Modula-2 dynamically linked programs.
 
 %package -n %{?scl_prefix}libgm2-static
 Summary: Static Modula-2 libraries
-Requires: libgm2 = %{version}-%{release}
-Requires: gcc-gm2 = %{version}-%{release}
+Requires: %{?scl_prefix}libgm2 = %{version}-%{release}
+Requires: %{?scl_prefix}gcc-gm2 = %{version}-%{release}
 
 %description -n %{?scl_prefix}libgm2-static
 This package contains static Modula-2 libraries.
@@ -677,14 +677,14 @@ devices.
 
 %package gdb-plugin
 Summary: GCC plugin for GDB
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 
 %description gdb-plugin
 This package contains GCC plugin for GDB C expression evaluation.
 
 %package -n %{?scl_prefix}libgccjit
 Summary: Library for embedding GCC inside programs and libraries
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 
 %description -n %{?scl_prefix}libgccjit
 This package contains shared library with GCC JIT front-end.
@@ -711,7 +711,7 @@ for __float128 math support and for Fortran REAL*16 support.
 %package -n %{?scl_prefix}libquadmath-devel
 Summary: GCC __float128 support
 Requires: %{?scl_prefix}libquadmath = %{version}-%{release}
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 
 %description -n %{?scl_prefix}libquadmath-devel
 This package contains headers for building Fortran programs using
@@ -735,7 +735,7 @@ which is a GCC transactional memory support runtime library.
 %package -n %{?scl_prefix}libitm-devel
 Summary: The GNU Transactional Memory support
 Requires: %{?scl_prefix}libitm = %{version}-%{release}
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 
 %description -n %{?scl_prefix}libitm-devel
 This package contains headers and support files for the
@@ -864,8 +864,8 @@ macros.
 
 %package gnat
 Summary: Ada 83, 95, 2005 and 2012 support for GCC
-Requires: gcc = %{version}-%{release}
-Requires: libgnat = %{version}-%{release}, libgnat-devel = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
+Requires: %{?scl_prefix}libgnat = %{version}-%{release}, %{?scl_prefix}libgnat-devel = %{version}-%{release}
 Autoreq: true
 
 %description gnat
@@ -890,7 +890,7 @@ libraries, which are required to compile with the GNAT.
 
 %package -n %{?scl_prefix}libgnat-static
 Summary: GNU Ada 83, 95, 2005 and 2012 static libraries
-Requires: libgnat-devel = %{version}-%{release}
+Requires: %{?scl_prefix}libgnat-devel = %{version}-%{release}
 Autoreq: true
 
 %description -n %{?scl_prefix}libgnat-static
@@ -899,9 +899,9 @@ static libraries.
 
 %package go
 Summary: Go support
-Requires: gcc = %{version}-%{release}
-Requires: libgo = %{version}-%{release}
-Requires: libgo-devel = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
+Requires: %{?scl_prefix}libgo = %{version}-%{release}
+Requires: %{?scl_prefix}libgo-devel = %{version}-%{release}
 Requires(post): %{_sbindir}/update-alternatives
 Requires(postun): %{_sbindir}/update-alternatives
 Provides: gccgo = %{version}-%{release}
@@ -921,7 +921,7 @@ Go dynamically linked programs.
 
 %package -n %{?scl_prefix}libgo-devel
 Summary: Go development libraries
-Requires: libgo = %{version}-%{release}
+Requires: %{?scl_prefix}libgo = %{version}-%{release}
 Autoreq: true
 
 %description -n %{?scl_prefix}libgo-devel
@@ -930,15 +930,15 @@ Go programs.
 
 %package -n %{?scl_prefix}libgo-static
 Summary: Static Go libraries
-Requires: libgo = %{version}-%{release}
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}libgo = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 
 %description -n %{?scl_prefix}libgo-static
 This package contains static Go libraries.
 
 %package plugin-devel
 Summary: Support for compiling GCC plugins
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 Requires: gmp-devel >= 4.1.2-8, mpfr-devel >= 3.1.0, libmpc-devel >= 0.8.1
 
 %description plugin-devel
@@ -948,7 +948,7 @@ not stable, so plugins must be rebuilt any time GCC is updated.
 
 %package offload-nvptx
 Summary: Offloading compiler to NVPTX
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 Requires: %{?scl_prefix}libgomp-offload-nvptx = %{version}-%{release}
 
 %description offload-nvptx
@@ -959,7 +959,7 @@ to NVidia PTX capable devices if available.
 
 %package offload-amdgcn
 Summary: Offloading compiler to AMD GCN
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 Requires: %{?scl_prefix}libgomp-offload-amdgcn = %{version}-%{release}
 Requires: llvm >= 15, lld >= 15
 
@@ -971,7 +971,7 @@ to AMD ROCm capable devices if available.
 
 %package plugin-annobin
 Summary: The annobin plugin for gcc, built by the installed version of gcc
-Requires: gcc = %{version}-%{release}
+Requires: %{?scl_prefix}gcc = %{version}-%{release}
 %if %{build_annobin_plugin}
 BuildRequires: annobin-plugin-gcc >= 10.62, rpm-devel, binutils-devel, xz
 %endif

@@ -19,9 +19,9 @@ Summary: A collection of utilities and DSOs to handle ELF files and DWARF data
 # Disable eu-stacktrace on EL7 (requires sysprof-capture-devel)
 %global enable_stacktrace 0
 
-Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
-Requires: elfutils-libs%{depsuffix} = %{version}-%{release}
-Requires: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libs%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
 
 BuildRequires: gcc
 # For libstdc++ demangle support
@@ -112,14 +112,14 @@ License: GPL-2.0-or-later OR LGPL-3.0-or-later
 %if 0%{!?_isa:1}
 Provides: elfutils-libs%{depsuffix} = %{version}-%{release}
 %endif
-Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf%{depsuffix} = %{version}-%{release}
 %if %{provide_yama_scope}
 Requires: default-yama-scope
 %endif
 %if 0%{?rhel} >= 8 || 0%{?fedora} >= 20
 Recommends: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
 %else
-Requires: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
 %endif
 
 %description libs
@@ -135,12 +135,12 @@ License: GPL-2.0-or-later OR LGPL-3.0-or-later
 %if 0%{!?_isa:1}
 Provides: elfutils-devel%{depsuffix} = %{version}-%{release}
 %endif
-Requires: elfutils-libs%{depsuffix} = %{version}-%{release}
-Requires: elfutils-libelf-devel%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libs%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf-devel%{depsuffix} = %{version}-%{release}
 %if 0%{?rhel} >= 8 || 0%{?fedora} >= 20
 Recommends: elfutils-debuginfod-client-devel%{depsuffix} = %{version}-%{release}
 %else
-Requires: elfutils-debuginfod-client-devel%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-debuginfod-client-devel%{depsuffix} = %{version}-%{release}
 %endif
 
 %description devel
@@ -156,8 +156,8 @@ License: GPL-2.0-or-later OR LGPL-3.0-or-later
 %if 0%{!?_isa:1}
 Provides: elfutils-devel-static%{depsuffix} = %{version}-%{release}
 %endif
-Requires: elfutils-devel%{depsuffix} = %{version}-%{release}
-Requires: elfutils-libelf-devel-static%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-devel%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf-devel-static%{depsuffix} = %{version}-%{release}
 Requires: libzstd-static%{depsuffix}
 
 %description devel-static
@@ -185,7 +185,7 @@ License: GPL-2.0-or-later OR LGPL-3.0-or-later
 %if 0%{!?_isa:1}
 Provides: elfutils-libelf-devel%{depsuffix} = %{version}-%{release}
 %endif
-Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf%{depsuffix} = %{version}-%{release}
 Obsoletes: libelf-devel <= 0.8.2-2
 
 %description libelf-devel
@@ -201,7 +201,7 @@ License: GPL-2.0-or-later OR LGPL-3.0-or-later
 %if 0%{!?_isa:1}
 Provides: elfutils-libelf-devel-static%{depsuffix} = %{version}-%{release}
 %endif
-Requires: elfutils-libelf-devel%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf-devel%{depsuffix} = %{version}-%{release}
 
 %description libelf-devel-static
 The elfutils-libelf-static package contains the static archive
@@ -250,8 +250,8 @@ License: GPL-3.0-or-later AND (GPL-2.0-or-later OR LGPL-3.0-or-later)
 Provides: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
 %endif
 # For debuginfod-find binary
-Requires: elfutils-libs%{depsuffix} = %{version}-%{release}
-Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libs%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf%{depsuffix} = %{version}-%{release}
 
 %package debuginfod-client-devel
 Summary: Libraries and headers to build debuginfod client applications
@@ -259,14 +259,14 @@ License: GPL-2.0-or-later OR LGPL-3.0-or-later
 %if 0%{!?_isa:1}
 Provides: elfutils-debuginfod-client-devel%{depsuffix} = %{version}-%{release}
 %endif
-Requires: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
 
 %package debuginfod
 Summary: HTTP ELF/DWARF file server addressed by build-id
 License: GPL-3.0-or-later
-Requires: elfutils-libs%{depsuffix} = %{version}-%{release}
-Requires: elfutils-libelf%{depsuffix} = %{version}-%{release}
-Requires: elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libs%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-libelf%{depsuffix} = %{version}-%{release}
+Requires: %{?scl_prefix}elfutils-debuginfod-client%{depsuffix} = %{version}-%{release}
 BuildRequires: systemd
 %if %{with_sysusers}
 BuildRequires: systemd-rpm-macros

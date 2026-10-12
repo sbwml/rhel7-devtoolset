@@ -483,7 +483,7 @@ Requires(post): coreutils
 # actually want gold will not have to be changed.  In the future, if
 # we decide to deprecate gold, we can remove this requirement, and
 # then update other packages as necessary.
-Requires: binutils-gold >= %{version}
+Requires: %{?scl_prefix}binutils-gold >= %{version}
 %endif
 
 # On ARM EABI systems, we do want -gnueabi to be part of the
@@ -515,7 +515,7 @@ Provides: binutils-static = %{version}-%{release}
 %if %{with systemzlib}
 Requires: zlib-devel
 %endif
-Requires: binutils = %{version}-%{release}
+Requires: %{?scl_prefix}binutils = %{version}-%{release}
 # BZ 1215242: We need touch...
 Requires: coreutils
 
@@ -548,7 +548,7 @@ using libelf instead of BFD.
 %package gold
 Summary: The GOLD linker, a faster alternative to the BFD linker
 Provides: gold = %{version}-%{release}
-Requires: binutils >= %{version}
+Requires: %{?scl_prefix}binutils >= %{version}
 
 %description gold
 This package provides the GOLD linker, which can be used as an alternative to
@@ -571,7 +571,7 @@ linker, and it may become deprecated in the future.
 %package gprofng
 Summary: Next Generating code profiling tool
 Provides: gprofng = %{version}-%{release}
-Requires: binutils = %{version}-%{release}
+Requires: %{?scl_prefix}binutils = %{version}-%{release}
 
 %description gprofng
 GprofNG is the GNU Next Generation Profiler for analyzing the performance 

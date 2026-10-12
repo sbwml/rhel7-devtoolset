@@ -58,7 +58,7 @@ Requires: %{scl_prefix}gcc %{scl_prefix}gcc-c++ %{scl_prefix}gcc-gfortran
 Requires: %{scl_prefix}binutils %{scl_prefix}gdb %{scl_prefix}strace
 Requires: %{scl_prefix}dwz %{scl_prefix}elfutils
 Requires: %{scl_prefix}ltrace %{scl_prefix}make
-Requires: %{scl_prefix}annobin
+Requires: %{scl_prefix}annobin-plugin-gcc
 Obsoletes: %{name}-toolchain < %{version}-%{release}
 
 %description toolchain
