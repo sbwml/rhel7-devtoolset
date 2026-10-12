@@ -17,22 +17,6 @@ BuildRequires: devtoolset-%{gts_ver}-devel
 %{?scl:%global __objdump %{_scl_root}/usr/bin/objdump}
 %{?scl:%scl_package gcc}
 
-# ================= EL7 / devtoolset-16 configuration =================
-%global build_ada 0
-%global build_objc 0
-%global build_go 0
-%global build_d 0
-%global build_m2 0
-%global build_algol68 0
-%global build_cobol 0
-%global build_offload_nvptx 0
-%global build_offload_amdgcn 0
-%global build_cross 0
-%global build_isl 1
-%global build_libstdcxx_docs 0
-%global build_annobin_plugin 0
-%global build_libgdiagnostics 0
-%global _binaries_in_noarch_packages_terminate_build 0
 %global DATE 20260807
 %global gitrev 25040fb60e95bc8cb8eaa4b6706bd32591d95e7a
 %global gcc_version 16.2.1
@@ -78,7 +62,7 @@ BuildRequires: devtoolset-%{gts_ver}-devel
 %else
 %global multilib_64_archs sparc64 ppc64 ppc64p7 x86_64
 %endif
-%if 0%{?rhel} > 7
+%if 0%{?rhel:1}
 %global build_ada 0
 %global build_objc 0
 %global build_go 0
@@ -166,10 +150,14 @@ BuildRequires: devtoolset-%{gts_ver}-devel
 %else
 %global attr_ifunc 0
 %endif
+%if 0%{?rhel} <= 7
+%global build_offload_nvptx 0
+%else
 %ifarch x86_64 ppc64le
 %global build_offload_nvptx 1
 %else
 %global build_offload_nvptx 0
+%endif
 %endif
 %ifarch x86_64
 %global build_offload_amdgcn 0
@@ -201,6 +189,26 @@ BuildRequires: devtoolset-%{gts_ver}-devel
 # RHEL8 Sphinx is too old and this wouldn't build.
 %global build_libgdiagnostics 0
 %endif
+
+# ================= EL7 / devtoolset-16 configuration =================
+%if 0%{?rhel} <= 7
+%global build_ada 0
+%global build_objc 0
+%global build_go 0
+%global build_d 0
+%global build_m2 0
+%global build_algol68 0
+%global build_cobol 0
+%global build_offload_nvptx 0
+%global build_offload_amdgcn 0
+%global build_cross 0
+%global build_isl 1
+%global build_libstdcxx_docs 0
+%global build_annobin_plugin 0
+%global build_libgdiagnostics 0
+%global _binaries_in_noarch_packages_terminate_build 0
+%endif
+
 Summary: GCC version %{gcc_major}
 Name: %{?scl_prefix}gcc
 Version: %{gcc_version}
@@ -730,6 +738,7 @@ Requires: liblsan%{_isa} >= 5.1.1
 %description -n %{?scl_prefix}liblsan-devel
 This package contains Leak Sanitizer static runtime library.
 
+%if %{build_offload_nvptx}
 %package -n %{?scl_prefix}offload-nvptx
 Summary: Offloading compiler to NVPTX
 Requires: gcc >= 8.3.1
@@ -740,6 +749,7 @@ The gcc-offload-nvptx package provides offloading support for
 NVidia PTX.  OpenMP and OpenACC programs linked with -fopenmp will
 by default add PTX code into the binaries, which can be offloaded
 to NVidia PTX capable devices if available.
+%endif
 
 %if %{build_annobin_plugin}
 %package -n %{?scl_prefix}gcc-plugin-annobin
@@ -994,10 +1004,14 @@ CONFIGURE_OPTS="\
 %ifarch ppc64le
 	--enable-targets=powerpcle-linux \
 %endif
+%if 0%{?rhel} <= 7
+	--disable-multilib \
+%else
 %ifarch ppc64le %{mips} s390x
 	--disable-multilib \
 %else
 	--enable-multilib \
+%endif
 %endif
 	--with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions \
 	--enable-gnu-unique-object --enable-linker-build-id --with-gcc-major-version-only \

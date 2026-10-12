@@ -164,9 +164,9 @@ s = re.sub(
     s, flags=re.M)
 _GCC_PKG_GUARDS = (
     (re.compile(r'^%(?:package|files)\s+-n\s+.*sysroot_package_arch'), 'build_cross'),
-    (re.compile(r'^%package offload-nvptx\b'), 'build_offload_nvptx'),
-    (re.compile(r'^%package offload-amdgcn\b'), 'build_offload_amdgcn'),
-    (re.compile(r'^%package plugin-annobin\b'), 'build_annobin_plugin'),
+    (re.compile(r'^%package(?:\s+-n\s+\S+)?\s+offload-nvptx\b'), 'build_offload_nvptx'),
+    (re.compile(r'^%package(?:\s+-n\s+\S+)?\s+offload-amdgcn\b'), 'build_offload_amdgcn'),
+    (re.compile(r'^%package(?:\s+-n\s+\S+)?\s+(?:plugin-annobin|gcc-plugin-annobin)\b'), 'build_annobin_plugin'),
     (re.compile(r'^%package\s+-n\s+.*cross-gcc-'), 'build_cross'),
 )
 

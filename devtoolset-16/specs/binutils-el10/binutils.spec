@@ -930,7 +930,15 @@ run_target_configuration()
     # the LTO compiler.  The normal way to do this is to set RPM_BUILD_NCPUS.
     # But this only affects the -j option passed to make.  By adding -flto=N
     # we can also restrict the number of threads used by the LTO compiler.
-    export CFLAGS="$RPM_OPT_FLAGS -flto=$RPM_BUILD_NCPUS"
+%if 0%{?rhel} <= 7
+    export CFLAGS="$RPM_OPT_FLAGS"
+%else
+    if [ -n "$RPM_BUILD_NCPUS" ]; then
+      export CFLAGS="$RPM_OPT_FLAGS -flto=$RPM_BUILD_NCPUS"
+    else
+      export CFLAGS="$RPM_OPT_FLAGS"
+    fi
+%endif
 
 %ifarch %{power64}
     export CFLAGS="$CFLAGS -Wno-error"
