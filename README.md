@@ -40,25 +40,29 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 
 ## Installation & Usage
 
-### Installing Prebuilt RPMs
+### Setting Up the Repository
 
-Download the release archive from GitHub Releases:
+Configure the YUM repository:
 
 ```bash
-# Extract the release bundle
-tar -xzf devtoolset-14-14.3.1-rpms.tar.gz
-cd rpms
-
-# Install toolchain and runtime
-yum localinstall -y \
-  devtoolset-14-runtime-*.rpm \
-  devtoolset-14-binutils-*.rpm \
-  devtoolset-14-gcc-*.rpm \
-  devtoolset-14-make-*.rpm
-
-# Or install the full collection
-yum localinstall -y devtoolset-14-*.rpm
+curl -o /etc/yum.repos.d/devtoolset-el7.repo https://el7.cooluc.com/devtoolset-el7.repo
 ```
+
+### Installing Packages
+
+Install core toolchain components:
+
+```bash
+yum install -y devtoolset-14-gcc devtoolset-14-gcc-c++ devtoolset-14-make
+```
+
+Or install the full suite via the metapackage:
+
+```bash
+yum install -y devtoolset-14
+```
+
+*(Standalone RPM tarballs and individual RPMs are also published under GitHub Releases for offline environments.)*
 
 ### Enabling the Toolchain
 
