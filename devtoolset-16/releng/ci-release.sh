@@ -11,6 +11,7 @@ OUT="${OUT:-/out}"
 BUILD_ROOT="${BUILD_ROOT:-/build}"
 RELEASE_TAG="${RELEASE_TAG:-16.2.1}"
 DO_RELEASE="${RELEASE:-1}"
+BUNDLE_PREFIX="${BUNDLE_PREFIX:-}"
 
 source "$SRCDIR/releng/ci-common.sh"
 set +e
@@ -68,9 +69,9 @@ printf '%s\n' "${RPMS[@]}" "${SRPMS[@]}"
 
 if [ "$DO_RELEASE" = 1 ]; then
   log "===== BUNDLE RELEASE $RELEASE_TAG ====="
-  BUNDLE="$OUT/devtoolset-16-${RELEASE_TAG}-rpms.tar.gz"
+  BUNDLE="$OUT/${BUNDLE_PREFIX}devtoolset-16-${RELEASE_TAG}-rpms.tar.gz"
   tar czf "$BUNDLE" -C "$OUT" rpms srpms
-  ( cd "$OUT" && sha256sum "$(basename "$BUNDLE")" > sha256sums.txt )
+  ( cd "$OUT" && sha256sum "$(basename "$BUNDLE")" > "${BUNDLE_PREFIX}sha256sums.txt" )
   log "release bundle created: $BUNDLE"
 fi
 

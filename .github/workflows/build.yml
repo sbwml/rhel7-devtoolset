@@ -36,7 +36,7 @@ on:
         default: ''
         type: string
       publish_release:
-        description: 'Publish to GitHub Releases (target must be release)'
+        description: 'Publish to GitHub Releases'
         required: false
         default: false
         type: boolean
@@ -78,6 +78,7 @@ jobs:
             PRERELEASE="false"
             COMPS=""
             DO_RELEASE="1"
+            BUNDLE_PREFIX="full_"
           else
             DTS_VERSION="${{ inputs.version }}"
             TARGET="${{ inputs.target }}"
@@ -98,19 +99,19 @@ jobs:
             case "$TARGET" in
               release)
                 COMPS=""
-                DO_RELEASE="1"
+                BUNDLE_PREFIX="full_"
                 ;;
               deps)
                 COMPS="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
-                DO_RELEASE="0"
+                BUNDLE_PREFIX="dep_"
                 ;;
               gcc)
                 COMPS="gcc"
-                DO_RELEASE="0"
+                BUNDLE_PREFIX="gcc_"
                 ;;
               meta)
                 COMPS="meta"
-                DO_RELEASE="0"
+                BUNDLE_PREFIX="meta_"
                 ;;
               component)
                 COMPS="${{ inputs.component }}"
@@ -118,13 +119,18 @@ jobs:
                   echo "Error: target is 'component' but no component was specified" >&2
                   exit 1
                 fi
-                DO_RELEASE="0"
+                BUNDLE_PREFIX="${COMPS}_"
                 ;;
               *)
                 echo "Unknown target: $TARGET" >&2
                 exit 1
                 ;;
             esac
+            if [ "$PUBLISH" = "true" ] || [ "$TARGET" = "release" ]; then
+              DO_RELEASE="1"
+            else
+              DO_RELEASE="0"
+            fi
           fi
 
           echo "dts_version=$DTS_VERSION" >> "$GITHUB_OUTPUT"
@@ -135,6 +141,7 @@ jobs:
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "comps=$COMPS" >> "$GITHUB_OUTPUT"
           echo "do_release=$DO_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "bundle_prefix=$BUNDLE_PREFIX" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -157,6 +164,7 @@ jobs:
             -v "${{ github.workspace }}/out:/out" \
             -e RELEASE_TAG="${{ steps.params.outputs.release_tag }}" \
             -e RELEASE="${{ steps.params.outputs.do_release }}" \
+            -e BUNDLE_PREFIX="${{ steps.params.outputs.bundle_prefix }}" \
             -e COMPS="${{ steps.params.outputs.comps }}" \
             dts${{ steps.params.outputs.dts_version }}-builder:latest \
             bash -c "bash /workspace/devtoolset-${{ steps.params.outputs.dts_version }}/releng/ci-release.sh"
@@ -194,7 +202,8 @@ jobs:
           name: devtoolset-${{ steps.params.outputs.dts_version }} ${{ steps.params.outputs.release_tag }}
           draft: false
           prerelease: ${{ steps.params.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: true
           files: |
-            out/devtoolset-*.tar.gz
-            out/sha256sums.txt
+            out/*devtoolset-*.tar.gz
+            out/*sha256sums.txt
           generate_release_notes: true
