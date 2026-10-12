@@ -1,0 +1,122 @@
+# Check distro name is included in the version output.
+Patch001: gdb-6.3-rh-testversion-20041202.patch
+
+# Test sideeffects of skipping ppc .so libs trampolines (BZ 218379).
+#=fedoratest
+Patch002: gdb-6.5-bz218379-ppc-solib-trampoline-test.patch
+
+# Support for stepping over PPC atomic instruction sequences (BZ 237572).
+#=fedoratest
+Patch003: gdb-6.6-bz237572-ppc-atomic-sequence-test.patch
+
+# Test gcore memory and time requirements for large inferiors.
+#=fedoratest
+Patch004: gdb-6.5-gcore-buffer-limit-test.patch
+
+# Test GCORE for shmid 0 shared memory mappings.
+#=fedoratest: But it is broken anyway, sometimes the case being tested is not reproducible.
+Patch005: gdb-6.3-mapping-zero-inode-test.patch
+
+# Fix resolving of variables at locations lists in prelinked libs (BZ 466901).
+#=fedoratest
+Patch006: gdb-6.8-bz466901-backtrace-full-prelinked.patch
+
+# Fix follow-exec for C++ programs (bugreported by Martin Stransky).
+#=fedoratest
+Patch007: gdb-archer-next-over-throw-cxx-exec.patch
+
+# Testcase for `Setting solib-absolute-prefix breaks vDSO' (BZ 818343).
+#=fedoratest
+Patch008: gdb-rhbz-818343-set-solib-absolute-prefix-testcase.patch
+
+# Fix '`catch syscall' doesn't work for parent after `fork' is called'
+# (Philippe Waroquiers, RH BZ 1149205).
+#=fedoratest
+Patch009: gdb-rhbz1149205-catch-syscall-after-fork-test.patch
+
+# Fix '[ppc64] and [s390x] wrong prologue skip on -O2 -g code' (Jan
+# Kratochvil, RH BZ 1084404).
+#=fedoratest
+Patch010: gdb-rhbz1084404-ppc64-s390x-wrong-prologue-skip-O2-g-3of3.patch
+
+# Update gdb-add-index.sh such that, when the GDB environment
+# variable is not set, the script is smarter than just looking for
+# 'gdb' in the $PATH.
+#
+# The actual search order is now: /usr/bin/gdb.minimal, gdb (in the
+# $PATH), then /usr/libexec/gdb.
+#
+# For the rationale of looking for gdb.minimal see:
+#
+#   https://fedoraproject.org/wiki/Changes/Minimal_GDB_in_buildroot
+#
+#=fedora
+Patch011: gdb-add-index.patch
+
+# Not a backport.  Add a new script which hooks into GDB and suggests
+# RPMs to install when GDB finds an objfile with no debug info.
+Patch012: gdb-add-rpm-suggestion-script.patch
+
+# Backport "s390: Add support for z17 as CPU name"
+# (Jens Remus, RHEL-50069)
+Patch013: gdb-rhel-50069-support-z17.patch
+
+# [gdb/tdep] Refactor amd64_get_unused_input_int_reg, part 1
+# (Tom de Vries, RHEL-7329)
+Patch014: gdb-rhel-7329-vandps-clobbers-registers-1-of-13.patch
+
+# [gdb/tdep] Refactor amd64_get_unused_input_int_reg, part 2
+# (Tom de Vries, RHEL-7329)
+Patch015: gdb-rhel-7329-vandps-clobbers-registers-2-of-13.patch
+
+# [gdb/tdep] Refactor amd64_get_unused_input_int_reg, part 3
+# (Tom de Vries, RHEL-7329)
+Patch016: gdb-rhel-7329-vandps-clobbers-registers-3-of-13.patch
+
+# [gdb/tdep] Factor out amd64_get_used_input_int_regs
+# (Tom de Vries, RHEL-7329)
+Patch017: gdb-rhel-7329-vandps-clobbers-registers-4-of-13.patch
+
+# [gdb/tdep] Add amd64-insn-decode selftest
+# (Tom de Vries, RHEL-7329)
+Patch018: gdb-rhel-7329-vandps-clobbers-registers-5-of-13.patch
+
+# [gdb/tdep] Factor out rip_relative_p
+# (Tom de Vries, RHEL-7329)
+Patch019: gdb-rhel-7329-vandps-clobbers-registers-6-of-13.patch
+
+# [gdb/tdep] Fix rip-relative insn handling in amd64_get_used_input_int_reg
+# (Tom de Vries, RHEL-7329)
+Patch020: gdb-rhel-7329-vandps-clobbers-registers-7-of-13.patch
+
+# [gdb/tdep] Factor out part of fixup_riprel
+# (Tom de Vries, RHEL-7329)
+Patch021: gdb-rhel-7329-vandps-clobbers-registers-8-of-13.patch
+
+# [gdb/tdep] Add vex2_to_vex3
+# (Tom de Vries, RHEL-7329)
+Patch022: gdb-rhel-7329-vandps-clobbers-registers-9-of-13.patch
+
+# [gdb/tdep] Add vzeroupper and vzeroall in amd64-insn-decode selftest
+# (Tom de Vries, RHEL-7329)
+Patch023: gdb-rhel-7329-vandps-clobbers-registers-10-of-13.patch
+
+# [gdb/tdep] Make amd64_get_insn_details more regular
+# (Tom de Vries, RHEL-7329)
+Patch024: gdb-rhel-7329-vandps-clobbers-registers-11-of-13.patch
+
+# [gdb/tdep] Fix vmovdqu decoding
+# (Tom de Vries, RHEL-7329)
+Patch025: gdb-rhel-7329-vandps-clobbers-registers-12-of-13.patch
+
+# [gdb/tdep] Support REX2 and EVEX prefix
+# (Tom de Vries, RHEL-7329)
+Patch026: gdb-rhel-7329-vandps-clobbers-registers-13-of-13.patch
+
+# Backport of three upstream patches.  The first two relate to index
+# generation, while the third relates to symbol lookup, but is needed
+# so that the tests from the earlier two patches will pass.
+#
+# (Tom Tromey and Andrew Burgess, RHEL-150992)
+Patch027: gdb-rhel-150992-index-generation-fixes.patch
+

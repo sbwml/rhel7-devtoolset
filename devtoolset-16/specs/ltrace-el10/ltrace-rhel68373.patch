@@ -1,0 +1,31 @@
+From 4da87819752101fb9665120641454448ebc95526 Mon Sep 17 00:00:00 2001
+From: DJ Delorie <dj@delorie.com>
+Date: Wed, 17 Sep 2025 17:08:18 -0400
+Subject: ppc64le: fix couldn't find DT_PPC64_GLINK on /lib64/ld64.so.2
+
+The loader is static and doesn't have a PLT so not finding
+this there is not an issue, but it shows up in the dynamic
+loader chain, so ignore this "error".
+
+diff --git a/sysdeps/linux-gnu/ppc/plt.c b/sysdeps/linux-gnu/ppc/plt.c
+index 66a842b..321eda3 100644
+--- a/sysdeps/linux-gnu/ppc/plt.c
++++ b/sysdeps/linux-gnu/ppc/plt.c
+@@ -520,13 +520,12 @@ arch_elf_init(struct ltelf *lte, struct library *lib)
+ 		GElf_Addr glink_vma;
+ 		if (elf_load_dynamic_entry(lte, DT_PPC64_GLINK,
+ 					   &glink_vma) < 0) {
+-			fprintf(stderr, "couldn't find DT_PPC64_GLINK\n");
+-			return -1;
++			lte->arch.plt_stub_vma = 0;
++		} else {
++			/* The first glink stub starts at offset 32.  */
++			lte->arch.plt_stub_vma = glink_vma + 32;
+ 		}
+ 
+-		/* The first glink stub starts at offset 32.  */
+-		lte->arch.plt_stub_vma = glink_vma + 32;
+-
+ 	} else {
+ 		/* By exhaustion--PPC32 BSS.  */
+ 		if (elf_load_dynamic_entry(lte, DT_PLTGOT,

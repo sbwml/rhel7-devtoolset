@@ -8,7 +8,19 @@ Upstream repository mirror: `http://mirror.stream.centos.org/10-stream/AppStream
 |---|---|---|---|
 | gcc / gcc-c++ / gcc-gfortran | `gcc-toolset-16-gcc-16.2.1-1.2.el10.src.rpm` | 16.2.1 | AppStream |
 | binutils | `gcc-toolset-16-binutils-2.46-3.el10.src.rpm` | 2.46 | AppStream |
+| make | `make-4.4.1-9.el10.src.rpm` | 4.4.1 | BaseOS |
+| elfutils | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | 0.194 | BaseOS |
+| strace | `strace-6.12-3.el10.src.rpm` | 6.12 | BaseOS |
+| annobin | `annobin-13.02-2.el10.src.rpm` | 13.02 | AppStream |
+| dwz | `dwz-0.16-1.el10.src.rpm` | 0.16 | AppStream |
+| dyninst | `dyninst-13.0.0-1.el10.src.rpm` | 13.0.0 | AppStream |
+| gdb | `gdb-16.3-3.el10.src.rpm` | 16.3 | AppStream |
+| ltrace | `ltrace-0.7.91-53.el10.src.rpm` | 0.7.91 | AppStream |
+| systemtap | `systemtap-5.4-3.el10.src.rpm` | 5.4 | AppStream |
+| valgrind | `valgrind-3.26.0-5.el10.src.rpm` | 3.26.0 | AppStream |
 | meta | `gcc-toolset-16-16.0-1.el10.src.rpm` | 16.0 | AppStream |
+
+> Note: `oprofile` and `memstomp` were removed in EL10 upstream and are not delivered in devtoolset-16.
 
 ## Porting Architecture
 

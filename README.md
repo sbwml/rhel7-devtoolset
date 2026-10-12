@@ -3,7 +3,7 @@
 Software Collection (SCL) packaging of modern GCC toolchains for CentOS 7 and RHEL 7 (x86_64).
 
 This repository provides backports for:
-- **devtoolset-16**: GCC 16.2.1 toolchain, based on **CentOS Stream 10 (EL10)** `gcc-toolset-16`.
+- **devtoolset-16**: GCC 16.2.1 toolchain and complete userland diagnostics suite, based on **CentOS Stream 10 (EL10)** `gcc-toolset-16` and EL10 baseline.
 - **devtoolset-14**: GCC 14.3.1 toolchain and complete userland diagnostics suite, based on **Rocky Linux 10 (EL10)**.
 
 Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runtime environment.
@@ -26,12 +26,22 @@ Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runti
 
 ## Component Matrix
 
-### devtoolset-16 (EL10 gcc-toolset-16 Baseline)
+### devtoolset-16 (EL10 Baseline)
 
 | Component | Version | Upstream SRPM | Package Name |
 |---|---|---|---|
 | GCC (C, C++, Fortran) | 16.2.1 | `gcc-toolset-16-gcc-16.2.1-1.2.el10.src.rpm` | `devtoolset-16-gcc` |
 | Binutils | 2.46 | `gcc-toolset-16-binutils-2.46-3.el10.src.rpm` | `devtoolset-16-binutils` |
+| Make | 4.4.1 | `make-4.4.1-9.el10.src.rpm` | `devtoolset-16-make` |
+| Elfutils | 0.194 | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | `devtoolset-16-elfutils` |
+| Strace | 6.12 | `strace-6.12-3.el10.src.rpm` | `devtoolset-16-strace` |
+| Annobin | 13.02 | `annobin-13.02-2.el10.src.rpm` | `devtoolset-16-annobin` |
+| DWZ | 0.16 | `dwz-0.16-1.el10.src.rpm` | `devtoolset-16-dwz` |
+| Dyninst | 13.0.0 | `dyninst-13.0.0-1.el10.src.rpm` | `devtoolset-16-dyninst` |
+| GDB | 16.3 | `gdb-16.3-3.el10.src.rpm` | `devtoolset-16-gdb` |
+| Ltrace | 0.7.91 | `ltrace-0.7.91-53.el10.src.rpm` | `devtoolset-16-ltrace` |
+| SystemTap | 5.4 | `systemtap-5.4-3.el10.src.rpm` | `devtoolset-16-systemtap` |
+| Valgrind | 3.26.0 | `valgrind-3.26.0-5.el10.src.rpm` | `devtoolset-16-valgrind` |
 | Metapackages | 16.0 | `gcc-toolset-16-16.0-1.el10.src.rpm` | `devtoolset-16` |
 
 For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-16/releng/EL10-BASELINE.md).
@@ -77,7 +87,7 @@ yum install -y devtoolset-16
 Or install core toolchain packages individually:
 
 ```bash
-yum install -y devtoolset-16-gcc devtoolset-16-gcc-c++ devtoolset-16-binutils
+yum install -y devtoolset-16-gcc devtoolset-16-gcc-c++ devtoolset-16-binutils devtoolset-16-make
 ```
 
 #### Enabling devtoolset-16
@@ -129,7 +139,7 @@ Verify compiler version:
 
 ```bash
 gcc --version
-# gcc (GCC) 14.3.1 20250212 (Red Hat 14.3.1-4)
+gcc (GCC) 14.3.1 20251022 (Red Hat 14.3.1-4)
 ```
 
 Alternatively, source the environment script directly:
@@ -164,7 +174,8 @@ source /opt/rh/devtoolset-14/enable
     └── specs/
         ├── binutils-el10/      # Binutils 2.46 spec and patches
         ├── gcc-el10/           # GCC 16.2.1 spec and patches
-        └── meta/               # devtoolset-16 metapackages
+        ├── meta/               # devtoolset-16 metapackages
+        └── ...                 # Full diagnostic & build tools (make, gdb, elfutils, strace, etc.)
 ```
 
 ---

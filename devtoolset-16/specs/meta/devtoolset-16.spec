@@ -14,7 +14,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Source0: README
 Source1: gts-annobin-plugin-select.sh
 
-Requires: %{scl_prefix}toolchain
+Requires: %{scl_prefix}toolchain %{scl_prefix}perftools
 Obsoletes: %{name} < %{version}-%{release}
 Obsoletes: %{scl_prefix}dockerfiles < %{version}-%{release}
 
@@ -54,11 +54,27 @@ Summary: Package shipping basic toolchain applications
 Group: Applications/File
 Requires: %{scl_prefix}runtime
 Requires: %{scl_prefix}gcc %{scl_prefix}gcc-c++ %{scl_prefix}gcc-gfortran
-Requires: %{scl_prefix}binutils
+Requires: %{scl_prefix}binutils %{scl_prefix}gdb %{scl_prefix}strace
+Requires: %{scl_prefix}dwz %{scl_prefix}elfutils
+Requires: %{scl_prefix}ltrace %{scl_prefix}make
+Requires: %{scl_prefix}annobin-plugin-gcc
 Obsoletes: %{name}-toolchain < %{version}-%{release}
 
 %description toolchain
-Package shipping basic toolchain applications (compiler, linker, assembler)
+Package shipping basic toolchain applications (compiler, debugger, ...)
+
+%package perftools
+Summary: Package shipping performance tools
+Group: Applications/File
+Requires: %{scl_prefix}runtime
+Requires: %{scl_prefix}systemtap %{scl_prefix}valgrind
+%ifarch x86_64 ppc64le aarch64
+Requires: %{scl_prefix}dyninst
+%endif
+Obsoletes: %{name}-perftools < %{version}-%{release}
+
+%description perftools
+Package shipping performance tools (systemtap, valgrind)
 
 %prep
 %setup -c -T
@@ -142,6 +158,8 @@ install -p -m 755 %{SOURCE1} %{buildroot}%{rrcdir}/
 %{_root_sysconfdir}/rpm/macros.%{scl}*
 
 %files toolchain
+
+%files perftools
 
 %post runtime
 if [ ! -f %{_sysconfdir}/selinux-equiv.created ]; then

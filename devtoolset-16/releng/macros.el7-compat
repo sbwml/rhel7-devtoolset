@@ -63,4 +63,30 @@
 %build_fflags %{optflags}
 %build_ldflags %{?__global_ldflags}
 
+# CMake macros for EL7 (CMake 2.8 lacking %cmake macros)
+%__cmake cmake
+%cmake() %{__cmake} \
+  -DCMAKE_INSTALL_PREFIX:PATH=%{_prefix} \
+  -DCMAKE_INSTALL_LIBDIR:PATH=%{_libdir} \
+  -DINCLUDE_INSTALL_DIR:PATH=%{_includedir} \
+  -DLIB_INSTALL_DIR:PATH=%{_libdir} \
+  -DSYSCONF_INSTALL_DIR:PATH=%{_sysconfdir} \
+  -DSHARE_INSTALL_PREFIX:PATH=%{_datadir} \
+  -DBUILD_SHARED_LIBS:BOOL=ON \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  %{?_cmake_skip_rpath} \
+  %*
+%cmake_build() %{__make} %{?_smp_mflags} %*
+%cmake_install() %{__make} install DESTDIR=%{?buildroot} %*
+
 %__python3 /usr/bin/python3
+
+# SystemTap disabled backends on EL7
+%with_crash 0
+%with_emacsvim 0
+%with_python2_probes 0
+%with_java 0
+%with_dyninst 0
+%with_debuginfod 0
+%with_bpf 0
+%with_virthost 0

@@ -15,17 +15,22 @@ DO_RELEASE="${RELEASE:-1}"
 source "$SRCDIR/releng/ci-common.sh"
 set +e
 
-ALL_ORDER="binutils gcc meta"
+ALL_ORDER="automake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
 ORDER="${COMPS:-$ALL_ORDER}"
 
 log "===== devtoolset-16 release build (tag=$RELEASE_TAG) ====="
 setup_repos; install_toolchain; setup_dirs
+ensure_automake || log "ensure_automake fallback to system automake"
 log "toolchain: $(scl enable devtoolset-14 'gcc -v' 2>&1 | tail -1)"
 log "components: $ORDER"
 
 declare -A RC
 for COMP in $ORDER; do
   log "########## $COMP ##########"
+  if [ "$COMP" = "automake" ]; then
+    RC[$COMP]=0
+    continue
+  fi
   SPEC=$(prepare_spec "$COMP") || { echo "!! prepare_spec failed: $COMP"; RC[$COMP]=1; continue; }
   case "$COMP" in
     gcc) bash "$SRCDIR/releng/fetch-gcc-srcs.sh" "$BUILD_ROOT/SOURCES" 2>&1 | tail -30 ;;

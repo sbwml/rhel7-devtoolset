@@ -29,6 +29,12 @@ failovermethod=priority
 gpgcheck=0
 enabled=1
 
+[epel-archive]
+name=EPEL 7 (archive)
+baseurl=https://archives.fedoraproject.org/pub/archive/epel/7/$basearch/
+gpgcheck=0
+enabled=1
+
 [devtoolset-14]
 name=Red Hat Developer Toolset 14 CentOS 7 - $basearch
 baseurl=https://el7.cooluc.com/7/Packages
@@ -40,11 +46,11 @@ REPO
 RUN yum -y install yum-utils rpm-build createrepo rpmdevtools rpm-sign gnupg2 \
       make wget curl tar xz bzip2 gzip zip unzip cpio which patch diffutils \
       findutils file sed gawk grep glibc-devel glibc-static bison flex m4 \
-      gettext texinfo autoconf automake libtool pkgconfig python3 \
-      perl perl-devel scl-utils scl-utils-build sudo \
-      jansson-devel zlib-devel sharutils bc dejagnu libstdc++-static \
-      ncurses-devel readline-devel expat-devel \
-      libstdc++-devel gmp-devel mpfr-devel libmpc-devel xz-devel \
+      gettext texinfo autoconf automake libtool pkgconfig python3 python2 \
+      perl perl-devel perl-generators scl-utils scl-utils-build sudo \
+      policycoreutils jansson-devel zlib-devel sharutils bc dejagnu libstdc++-static \
+      elfutils-debuginfod-client-devel ncurses-devel readline-devel expat-devel \
+      libstdc++-devel gmp-devel mpfr-devel libmpc-devel isl-devel xz-devel \
       guile-devel libtool-ltdl-devel help2man iso-codes && \
     yum -y install devtoolset-14 && \
     yum clean all && rm -rf /var/cache/yum

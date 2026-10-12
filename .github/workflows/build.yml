@@ -101,11 +101,7 @@ jobs:
                 DO_RELEASE="1"
                 ;;
               deps)
-                if [ "$DTS_VERSION" = "16" ]; then
-                  COMPS="binutils"
-                else
-                  COMPS="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
-                fi
+                COMPS="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
                 DO_RELEASE="0"
                 ;;
               gcc)

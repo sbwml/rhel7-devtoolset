@@ -1,0 +1,55 @@
+From 1e4f282ba6c1fea8b689aa74affbedddbb799d21 Mon Sep 17 00:00:00 2001
+From: "Dmitry V. Levin" <ldv@strace.io>
+Date: Thu, 8 May 2025 08:00:00 +0000
+Subject: [PATCH 001/271] tests/group_req: fix compilation warnings
+
+Workaround the following warnings generated in group_req.c test starting
+with glibc-2.40.9000-1022-ge3a6e85d67f1a48dec3e2557a83d6ce1544a58cb that
+introduced _FORTIFY_SOURCE support for inet_pton:
+
+  In function 'inet_pton',
+      inlined from 'main' at group_req.c:48:2:
+  /usr/include/bits/inet-fortified.h:56:10: warning: call to '__inet_pton_chk_warn' declared with attribute warning: inet_pton called with a destination buffer size too small [-Wattribute-warning]
+     56 |   return __glibc_fortify (inet_pton, sz, sizeof (char),
+
+  In function 'inet_pton',
+      inlined from 'main' at group_req.c:51:2:
+  /usr/include/bits/inet-fortified.h:56:10: warning: call to '__inet_pton_chk_warn' declared with attribute warning: inet_pton called with a destination buffer size too small [-Wattribute-warning]
+     56 |   return __glibc_fortify (inet_pton, sz, sizeof (char),
+
+* tests/group_req.c (main): Explicitly cast pointers of type
+"struct group_req.gr_group *" to pointers of types "struct sockaddr_in *"
+and "struct sockaddr_in6 *" using unions, to workaround _FORTIFY_SOURCE
+warnings for inet_pton.
+---
+ tests/group_req.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/tests/group_req.c b/tests/group_req.c
+index dfc06c1dd..b9c373ea6 100644
+--- a/tests/group_req.c
++++ b/tests/group_req.c
+@@ -45,10 +45,18 @@ main(void)
+ 		perror_msg_and_skip("lo");
+ 
+ 	greq4->gr_group.ss_family = AF_INET;
+-	inet_pton(AF_INET, multi4addr, &greq4->gr_group.ss_family + 2);
++	union {
++		struct sockaddr_in *s;
++		typeof(greq4->gr_group) *g;
++	} ug4 = { .g = &greq4->gr_group };
++	inet_pton(AF_INET, multi4addr, &ug4.s->sin_addr);
+ 
+ 	greq6->gr_group.ss_family = AF_INET6;
+-	inet_pton(AF_INET6, multi6addr, &greq6->gr_group.ss_family + 4);
++	union {
++		struct sockaddr_in6 *s;
++		typeof(greq6->gr_group) *g;
++	} ug6 = { .g = &greq6->gr_group };
++	inet_pton(AF_INET6, multi6addr, &ug6.s->sin6_addr);
+ 
+ 	(void) close(0);
+ 	if (socket(AF_INET, SOCK_DGRAM, 0))
+-- 
+2.47.3
+

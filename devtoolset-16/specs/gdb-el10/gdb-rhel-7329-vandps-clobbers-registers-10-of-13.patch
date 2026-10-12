@@ -1,0 +1,61 @@
+From FEDORA_PATCHES Mon Sep 17 00:00:00 2001
+From: Tom de Vries <tdevries@suse.de>
+Date: Fri, 7 Mar 2025 09:25:33 +0100
+Subject: gdb-rhel-7329-vandps-clobbers-registers-10-of-13.patch
+
+;; [gdb/tdep] Add vzeroupper and vzeroall in amd64-insn-decode selftest
+;; (Tom de Vries, RHEL-7329)
+
+After I posted a tentative patch for PR31952, Alexander Monakov pointed out
+that the patch broke instruction decoding for instructions vzeroall and
+vzeroupper.
+
+Add selftests for these two instructions in amd64-insn-decode, both using
+vex2 and vex3 prefixes.
+
+Tested on x86_64-linux.
+
+diff --git a/gdb/amd64-tdep.c b/gdb/amd64-tdep.c
+--- a/gdb/amd64-tdep.c
++++ b/gdb/amd64-tdep.c
+@@ -3512,6 +3512,40 @@ test_amd64_get_insn_details (void)
+   gdb::byte_vector updated_insn = { 0x48, 0x8d, 0xb9, 0x1e, 0x00, 0x00, 0x00 };
+   fixup_riprel (details, insn.data (), ECX_REG_NUM);
+   SELF_CHECK (insn == updated_insn);
++
++  gdb::byte_vector vex2, vex3;
++
++  /* INSN: vzeroall, vex2 prefix.  */
++  vex2 = { 0xc5, 0xfc, 0x77 };
++  amd64_get_insn_details (vex2.data (), &details);
++  SELF_CHECK (details.opcode_len == 1);
++  SELF_CHECK (details.enc_prefix_offset == -1);
++  SELF_CHECK (details.opcode_offset == 2);
++  SELF_CHECK (details.modrm_offset == -1);
++
++  /* INSN: vzeroall, vex3 prefix.  */
++  vex2_to_vex3 (vex2, vex3);
++  amd64_get_insn_details (vex3.data (), &details);
++  SELF_CHECK (details.opcode_len == 1);
++  SELF_CHECK (details.enc_prefix_offset == 0);
++  SELF_CHECK (details.opcode_offset == 3);
++  SELF_CHECK (details.modrm_offset == -1);
++
++  /* INSN: vzeroupper, vex2 prefix.  */
++  vex2 = { 0xc5, 0xf8, 0x77 };
++  amd64_get_insn_details (vex2.data (), &details);
++  SELF_CHECK (details.opcode_len == 1);
++  SELF_CHECK (details.enc_prefix_offset == -1);
++  SELF_CHECK (details.opcode_offset == 2);
++  SELF_CHECK (details.modrm_offset == -1);
++
++  /* INSN: vzeroupper, vex3 prefix.  */
++  vex2_to_vex3 (vex2, vex3);
++  amd64_get_insn_details (vex3.data (), &details);
++  SELF_CHECK (details.opcode_len == 1);
++  SELF_CHECK (details.enc_prefix_offset == 0);
++  SELF_CHECK (details.opcode_offset == 3);
++  SELF_CHECK (details.modrm_offset == -1);
+ }
+ 
+ static void
