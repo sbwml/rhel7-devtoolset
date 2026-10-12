@@ -36,13 +36,6 @@ Summary: Package that handles %scl Software Collection.
 Group: Applications/File
 Requires: scl-utils >= 20120927-11
 Obsoletes: %{name}-runtime < %{version}-%{release}
-%if 0%{?rhel} >= 7
-Requires(post): %{_root_sbindir}/semanage %{_root_sbindir}/restorecon
-Requires(postun): %{_root_sbindir}/semanage %{_root_sbindir}/restorecon
-%else
-Requires(post): libselinux policycoreutils-python
-Requires(postun): libselinux policycoreutils-python
-%endif
 
 %description runtime
 Package shipping essential scripts to work with %scl Software Collection.
@@ -204,9 +197,21 @@ install -p -m 755 %{SOURCE1} %{buildroot}%{rrcdir}/
 
 %post runtime
 if [ ! -f %{_sysconfdir}/selinux-equiv.created ]; then
-  /usr/sbin/semanage fcontext -a -e / %{_scl_root}
-  restorecon -R %{_scl_root}
-  touch %{_sysconfdir}/selinux-equiv.created
+  _semanage=
+  if [ -x /usr/sbin/semanage ]; then
+    _semanage="/usr/sbin/semanage"
+  elif command -v semanage >/dev/null 2>&1; then
+    _semanage="semanage"
+  fi
+  if [ -n "$_semanage" ]; then
+    $_semanage fcontext -a -e / %{_scl_root} >/dev/null 2>&1 || :
+    if [ -x /sbin/restorecon ]; then
+      /sbin/restorecon -R %{_scl_root} >/dev/null 2>&1 || :
+    elif command -v restorecon >/dev/null 2>&1; then
+      restorecon -R %{_scl_root} >/dev/null 2>&1 || :
+    fi
+    touch %{_sysconfdir}/selinux-equiv.created
+  fi
 fi
 
 %preun runtime
@@ -214,8 +219,22 @@ fi
 
 %postun runtime
 if [ $1 = 0 ]; then
-  /usr/sbin/semanage fcontext -d %{_scl_root}
-  [ -d %{_scl_root} ] && restorecon -R %{_scl_root} || :
+  _semanage=
+  if [ -x /usr/sbin/semanage ]; then
+    _semanage="/usr/sbin/semanage"
+  elif command -v semanage >/dev/null 2>&1; then
+    _semanage="semanage"
+  fi
+  if [ -n "$_semanage" ]; then
+    $_semanage fcontext -d %{_scl_root} >/dev/null 2>&1 || :
+    if [ -d %{_scl_root} ]; then
+      if [ -x /sbin/restorecon ]; then
+        /sbin/restorecon -R %{_scl_root} >/dev/null 2>&1 || :
+      elif command -v restorecon >/dev/null 2>&1; then
+        restorecon -R %{_scl_root} >/dev/null 2>&1 || :
+      fi
+    fi
+  fi
 fi
 
 %changelog
