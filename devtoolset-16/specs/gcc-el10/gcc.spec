@@ -962,7 +962,7 @@ cd isl-build
 sed -i 's|libisl\([^-]\)|libgcc%{gcc_major}privateisl\1|g' \
   ../../isl-%{isl_version}/Makefile.{am,in}
 ../../isl-%{isl_version}/configure \
-  CC=/usr/bin/gcc CXX=/usr/bin/g++ \
+  CC="$CC" CXX="$CXX" \
   CFLAGS="${CFLAGS:-%optflags} $ISL_FLAG_PIC" --prefix=`cd ..; pwd`/isl-install
 # Make sure we build with -g (#2155127).
 sed -i -e 's/CFLAGS =.*/& -g/' Makefile

@@ -13,6 +13,38 @@ orig = s
 # Strip %dnl (RPM 4.15+)
 s = re.sub(r'^%dnl(?: .*)?$', '', s, flags=re.M)
 
+# Eliminate %elif (unsupported in RPM 4.11) by converting to nested %else / %if
+def _rewrite_elif(text):
+    lines = text.split('\n')
+    out = []
+    stack = []
+    if_re = re.compile(r'^(\s*)%(?:if|ifarch|ifnarch|ifos|ifnos|ifdef|ifndef)\b')
+    elif_re = re.compile(r'^(\s*)%elif\b\s*(.*)$')
+    endif_re = re.compile(r'^(\s*)%endif\b')
+    for line in lines:
+        m_if = if_re.match(line)
+        m_elif = elif_re.match(line)
+        m_endif = endif_re.match(line)
+        if m_if:
+            stack.append(0)
+            out.append(line)
+        elif m_elif:
+            if stack:
+                stack[-1] += 1
+            indent, cond = m_elif.group(1), m_elif.group(2)
+            out.append(f'{indent}%else\n{indent}%if {cond}')
+        elif m_endif:
+            extra = stack.pop() if stack else 0
+            out.append(line)
+            indent = m_endif.group(1)
+            for _ in range(extra):
+                out.append(f'{indent}%endif')
+        else:
+            out.append(line)
+    return '\n'.join(out)
+
+s = _rewrite_elif(s)
+
 # Rewrite %{with X} / %{without X} to classical RPM syntax
 s = re.sub(r'%\{with\s+([A-Za-z0-9_]+)\}', r'%{?with_\1:1}%{!?with_\1:0}', s)
 s = re.sub(r'%\{without\s+([A-Za-z0-9_]+)\}', r'%{?without_\1:1}%{!?without_\1:0}', s)

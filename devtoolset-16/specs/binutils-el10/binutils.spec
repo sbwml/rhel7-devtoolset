@@ -232,18 +232,7 @@ URL: https://sourceware.org/binutils
 
 # %%define commit_id %%(echo "ba5838a98fb")
 
-%if "%{source}" == "official-release"
-Source0: https://ftp.gnu.org/gnu/binutils/binutils-with-gold-%{version}.tar.xz
-# Source0: https://ftp.gnu.org/gnu/binutils/binutils-%%{version}.tar.xz
-%elif "%{source}" == "even-pre-release"
 Source0: binutils-with-gold-%{version}.tar.xz
-%elif "%{source}" == "odd-pre-release"
-Source0: binutils-%%{version}.tar.xz
-%elif "%{source}" == "snapshot"
-Source0: binutils-with-gold-%{version}-%{commit_id}.tar.gz
-%elif "%{source}" == "tarball"
-Source0: binutils-%{version}-%{commit_id}.tar.xz
-%endif
 
 Source1: binutils-2.19.50.0.1-output-format.sed
 
@@ -733,10 +722,6 @@ use by developers.  It is NOT INTENDED FOR PRODUCTION use.
 %if 0%{?rhel} < 9
 %setup -q -n binutils-with-gold-%{version}
 %autopatch -p1
-%elif "%{source}" == "snapshot"
-%autosetup -p1 -n binutils-%{version}-%{commit_id}
-%elif "%{source}" == "official-release"
-%autosetup -p1 -n binutils-with-gold-%{version}
 %else
 %autosetup -p1 -n binutils-%{version}
 %endif
