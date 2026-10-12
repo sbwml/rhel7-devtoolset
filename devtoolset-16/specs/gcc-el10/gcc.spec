@@ -15,8 +15,8 @@ BuildRequires: devtoolset-%{gts_ver}-devel
 %{?scl:%scl_package gcc}
 
 %global __python /usr/bin/python3
-%{?scl:%global __strip %{_scl_root}/usr/bin/strip}
-%{?scl:%global __objdump %{_scl_root}/usr/bin/objdump}
+%{?scl:%global __strip %(test -x %{_scl_root}/usr/bin/strip && echo %{_scl_root}/usr/bin/strip || (test -x /opt/rh/devtoolset-14/root/usr/bin/strip && echo /opt/rh/devtoolset-14/root/usr/bin/strip || echo /usr/bin/strip))}
+%{?scl:%global __objdump %(test -x %{_scl_root}/usr/bin/objdump && echo %{_scl_root}/usr/bin/objdump || (test -x /opt/rh/devtoolset-14/root/usr/bin/objdump && echo /opt/rh/devtoolset-14/root/usr/bin/objdump || echo /usr/bin/objdump))}
 
 %global DATE 20260807
 %global gitrev 25040fb60e95bc8cb8eaa4b6706bd32591d95e7a
@@ -2162,6 +2162,25 @@ ln -sf gts-gcc-annobin.so.0.0.0 gcc-annobin.so.0.0.0
 %endif
 popd
 %endif
+
+# Strip debugging symbols from compiler binaries and shared libraries
+STRIP_BIN=""
+for s in "%{_scl_root}/usr/bin/strip" "/opt/rh/devtoolset-14/root/usr/bin/strip" "/usr/bin/strip"; do
+  if [ -x "$s" ]; then
+    STRIP_BIN="$s"
+    break
+  fi
+done
+if [ -n "$STRIP_BIN" ]; then
+  find %{buildroot} -type f \( -perm -0100 -o -perm -0010 -o -perm -0001 \) \
+    ! -name "*.a" ! -name "*.la" ! -name "*.py" ! -name "*.sh" | while read -r f; do
+    case "$(file -b "$f")" in
+      ELF*executable*|ELF*shared\ object*)
+        "$STRIP_BIN" -g -R .comment -R .note "$f" 2>/dev/null || :
+        ;;
+    esac
+  done
+fi
 
 %check
 cd obj-%{gcc_target_platform}
