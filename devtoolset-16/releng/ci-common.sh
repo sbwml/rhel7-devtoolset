@@ -166,6 +166,8 @@ el7_spec_compat() {
     -e 's/^%bcond_without clang$/%bcond_with clang/' \
     -e 's/^%bcond_without gold$/%bcond_with gold/' \
     -e 's/^%bcond_without systemzlib$/%bcond_with systemzlib/' \
+    -e 's/^%bcond_without xxhash$/%bcond_with xxhash/' \
+    -e 's/^%bcond_without zstd$/%bcond_with zstd/' \
     "$out"
 
   BOOT_GCC=/opt/rh/devtoolset-14/root/usr/bin/gcc

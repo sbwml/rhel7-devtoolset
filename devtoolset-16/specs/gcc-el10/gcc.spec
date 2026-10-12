@@ -13,8 +13,8 @@ BuildRequires: scl-utils-build
 BuildRequires: devtoolset-%{gts_ver}-devel
 %endif
 %global __python /usr/bin/python3
-%{?scl:%global __strip %{_scl_root}/usr/bin/strip}
-%{?scl:%global __objdump %{_scl_root}/usr/bin/objdump}
+%{?scl:%global __strip %(test -x %{_scl_root}/usr/bin/strip && echo %{_scl_root}/usr/bin/strip || (test -x /opt/rh/devtoolset-14/root/usr/bin/strip && echo /opt/rh/devtoolset-14/root/usr/bin/strip || echo /usr/bin/strip))}
+%{?scl:%global __objdump %(test -x %{_scl_root}/usr/bin/objdump && echo %{_scl_root}/usr/bin/objdump || (test -x /opt/rh/devtoolset-14/root/usr/bin/objdump && echo /opt/rh/devtoolset-14/root/usr/bin/objdump || echo /usr/bin/objdump))}
 %{?scl:%scl_package gcc}
 
 %global DATE 20260807

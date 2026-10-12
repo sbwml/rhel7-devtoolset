@@ -134,9 +134,13 @@ URL: https://sourceware.org/binutils
 # Default: run the testsuites.
 %bcond_without testsuite
 # Default: use the xxhash-devel library.
+%if 0%{?rhel} <= 7
+%bcond_with xxhash
+%bcond_with zstd
+%else
 %bcond_without xxhash
-# Default: Use the libztsd-devel library.
 %bcond_without zstd
+%endif
 # Default: do not create cross targeted versions of the binutils.
 %bcond_with crossbuilds
 
