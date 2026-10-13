@@ -237,9 +237,9 @@ BOOSTVEREOF
 
   for l in /usr/lib64/libboost_*-mt-1.69.so /usr/lib64/libboost_*-1.83.so* /usr/lib64/boost183/libboost_*.so; do
     [ -e "$l" ] || continue
-    b=\$(basename "$l")
-    stem=\${b%%.so.*}
-    ln -sfn "$l" "/usr/lib64/\${stem}.so" 2>/dev/null || true
+    b=$(basename "$l")
+    stem=${b%%.so.*}
+    ln -sfn "$l" "/usr/lib64/${stem}.so" 2>/dev/null || true
   done
   echo ">>> Boost cmake shim: $dest/BoostConfig.cmake (boost $ver)"
 }
