@@ -239,10 +239,14 @@ message(STATUS "Boost(shim) \${Boost_VERSION} include=\${Boost_INCLUDE_DIRS}")
 BOOSTEOF
   cat > "$dest/BoostConfigVersion.cmake" <<BOOSTVEREOF
 set(PACKAGE_VERSION "$ver")
-set(PACKAGE_VERSION_COMPATIBLE TRUE)
-if(PACKAGE_FIND_VERSION STREQUAL PACKAGE_VERSION)
-  set(PACKAGE_VERSION_EXACT TRUE)
-fi
+if(PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION)
+  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+else()
+  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+  if(PACKAGE_FIND_VERSION STREQUAL PACKAGE_VERSION)
+    set(PACKAGE_VERSION_EXACT TRUE)
+  endif()
+endif()
 BOOSTVEREOF
 
   for l in /usr/lib64/libboost_*-mt-1.69.so /usr/lib64/libboost_*-1.83.so* /usr/lib64/boost183/libboost_*.so; do
