@@ -12,7 +12,7 @@ set +e
 
 log "===== build $COMP ====="
 setup_repos; install_toolchain; setup_dirs
-log "toolchain: $(scl enable devtoolset-14 'gcc -v' 2>&1 | tail -1)"
+log "toolchain: $(scl enable devtoolset-12 'gcc -v' 2>&1 | tail -1)"
 
 SPEC=$(prepare_spec "$COMP") || { echo "!! prepare_spec failed"; exit 1; }
 log "spec: $SPEC"
@@ -29,7 +29,7 @@ install_built_prereqs "$COMP"
 log "rpmbuild -ba $SPEC"
 ( while :; do sleep 60; echo "[heartbeat $(date '+%H:%M:%S')] $COMP building..."; done ) &
 HB=$!
-scl enable devtoolset-14 "rpmbuild -ba --nodeps --nocheck '$SPEC'" 2>&1 | tee "$OUT/logs/$COMP.log"
+scl enable devtoolset-12 "rpmbuild -ba --nodeps --nocheck '$SPEC'" 2>&1 | tee "$OUT/logs/$COMP.log"
 rc=${PIPESTATUS[0]}
 kill "$HB" 2>/dev/null || true
 log "rpmbuild rc=$rc"

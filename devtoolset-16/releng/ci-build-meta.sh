@@ -20,7 +20,7 @@ bash "$SRCDIR/releng/fetch-srcs.sh" meta "$BUILD_ROOT/SOURCES" 2>&1 | tail -20
 log "rpmbuild -ba $SPEC"
 ( while :; do sleep 60; echo "[heartbeat $(date '+%H:%M:%S')] meta building..."; done ) &
 HB=$!
-scl enable devtoolset-14 "rpmbuild -ba --nodeps --nocheck '$SPEC'" 2>&1 | tee "$OUT/logs/meta.log"
+scl enable devtoolset-12 "rpmbuild -ba --nodeps --nocheck '$SPEC'" 2>&1 | tee "$OUT/logs/meta.log"
 rc=${PIPESTATUS[0]}
 kill "$HB" 2>/dev/null || true
 log "rpmbuild rc=$rc"

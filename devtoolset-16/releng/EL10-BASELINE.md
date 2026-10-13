@@ -41,4 +41,4 @@ Specifications and patches in `specs/<comp>-el10/` and `specs/meta/` are unpacke
 - Strips `%dnl` (introduced in RPM 4.15+).
 - Disables rich dependencies (`Requires: (a or b)`) and weak dependencies (`Recommends:`, `Suggests:`).
 - Normalizes boolean condition syntax from `%{with X}` to `%{?with_X:1}%{!?with_X:0}`.
-- Single-stage build for GCC 16 using `devtoolset-14` as the bootstrap host compiler (`http://el7.cooluc.com/devtoolset-el7.repo`).
+- Single-stage build for GCC 16 using `devtoolset-12` as the bootstrap host compiler.

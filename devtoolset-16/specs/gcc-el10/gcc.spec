@@ -15,8 +15,8 @@ BuildRequires: devtoolset-%{gts_ver}-devel
 %{?scl:%scl_package gcc}
 
 %global __python /usr/bin/python3
-%{?scl:%global __strip %(test -x %{_scl_root}/usr/bin/strip && echo %{_scl_root}/usr/bin/strip || (test -x /opt/rh/devtoolset-14/root/usr/bin/strip && echo /opt/rh/devtoolset-14/root/usr/bin/strip || echo /usr/bin/strip))}
-%{?scl:%global __objdump %(test -x %{_scl_root}/usr/bin/objdump && echo %{_scl_root}/usr/bin/objdump || (test -x /opt/rh/devtoolset-14/root/usr/bin/objdump && echo /opt/rh/devtoolset-14/root/usr/bin/objdump || echo /usr/bin/objdump))}
+%{?scl:%global __strip %(test -x %{_scl_root}/usr/bin/strip && echo %{_scl_root}/usr/bin/strip || (test -x /opt/rh/devtoolset-12/root/usr/bin/strip && echo /opt/rh/devtoolset-12/root/usr/bin/strip || echo /usr/bin/strip))}
+%{?scl:%global __objdump %(test -x %{_scl_root}/usr/bin/objdump && echo %{_scl_root}/usr/bin/objdump || (test -x /opt/rh/devtoolset-12/root/usr/bin/objdump && echo /opt/rh/devtoolset-12/root/usr/bin/objdump || echo /usr/bin/objdump))}
 
 %global DATE 20260807
 %global gitrev 25040fb60e95bc8cb8eaa4b6706bd32591d95e7a
@@ -899,8 +899,16 @@ export GLIBC_TUNABLES=glibc.cpu.hwcaps=-arch_3_1
 %endif
 %endif
 
+# devtoolset-16: Bootstrap using devtoolset-12 (host GCC 4.8 is insufficient)
+%if 0%{?rhel} <= 7
+CC=/opt/rh/devtoolset-12/root/usr/bin/gcc
+CXX=/opt/rh/devtoolset-12/root/usr/bin/g++
+PATH=/opt/rh/devtoolset-12/root/usr/bin:$PATH
+export PATH
+%else
 CC=gcc
 CXX=g++
+%endif
 OPT_FLAGS="%{optflags}"
 OPT_FLAGS=`echo $OPT_FLAGS|sed -e 's/-Wp,-U_FORTIFY_SOURCE,-D_FORTIFY_SOURCE=[123]//g'`
 OPT_FLAGS=`echo $OPT_FLAGS|sed -e 's/\(-Wp,\)\?-D_FORTIFY_SOURCE=[123]//g'`
@@ -1182,7 +1190,7 @@ CC="$CC" CXX="$CXX" CFLAGS="$OPT_FLAGS" \
 	$CONFIGURE_OPTS
 
 %if 0%{?rhel} < 8
-# EL7 / devtoolset-16: Single-stage build using devtoolset-14 host compiler
+# EL7 / devtoolset-16: Single-stage build using devtoolset-12 host compiler
 make %{?_smp_mflags} BOOT_CFLAGS="$OPT_FLAGS" all
 %else
 %ifarch sparc sparcv9 sparc64
@@ -2173,7 +2181,7 @@ popd
 
 # Strip debugging symbols from compiler binaries and shared libraries
 STRIP_BIN=""
-for s in "%{_scl_root}/usr/bin/strip" "/opt/rh/devtoolset-14/root/usr/bin/strip" "/usr/bin/strip"; do
+for s in "%{_scl_root}/usr/bin/strip" "/opt/rh/devtoolset-12/root/usr/bin/strip" "/usr/bin/strip"; do
   if [ -x "$s" ]; then
     STRIP_BIN="$s"
     break

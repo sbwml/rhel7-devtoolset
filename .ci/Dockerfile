@@ -21,12 +21,13 @@ mirrorlist=http://mirrorlist.cooluc.com/?release=7&arch=$basearch&repo=extras
 gpgcheck=0
 enabled=1
 
-[epel]
-name=EPEL 7
-baseurl=https://mirrors.aliyun.com/epel/7/$basearch/
-        https://archives.fedoraproject.org/pub/archive/epel/7/$basearch/
-failovermethod=priority
+[devtoolset-12]
+name=devtoolset-12
+baseurl=https://download.copr.fedorainfracloud.org/results/mlampe/devtoolset-12/epel-7-$basearch/
+type=rpm-md
+skip_if_unavailable=True
 gpgcheck=0
+repo_gpgcheck=0
 enabled=1
 
 [epel-archive]
@@ -34,13 +35,6 @@ name=EPEL 7 (archive)
 baseurl=https://archives.fedoraproject.org/pub/archive/epel/7/$basearch/
 gpgcheck=0
 enabled=1
-
-[devtoolset-14]
-name=Red Hat Developer Toolset 14 CentOS 7 - $basearch
-baseurl=https://el7.cooluc.com/7/Packages
-failovermethod=priority
-enabled=1
-gpgcheck=0
 REPO
 
 RUN yum -y install yum-utils rpm-build createrepo rpmdevtools rpm-sign gnupg2 \
@@ -53,7 +47,9 @@ RUN yum -y install yum-utils rpm-build createrepo rpmdevtools rpm-sign gnupg2 \
       libstdc++-devel gmp-devel mpfr-devel libmpc-devel isl-devel xz-devel \
       guile-devel libtool-ltdl-devel help2man iso-codes \
       libuuid-devel popt-devel glib2-devel && \
-    yum -y install devtoolset-14 && \
+    yum -y install devtoolset-12-gcc devtoolset-12-gcc-c++ devtoolset-12-make \
+      devtoolset-12-binutils devtoolset-12-runtime devtoolset-12-elfutils \
+      devtoolset-12-gdb && \
     yum clean all && rm -rf /var/cache/yum
 
 RUN cat > /root/.rpmmacros <<'MACRO'
@@ -67,8 +63,6 @@ RUN cat > /root/.rpmmacros <<'MACRO'
 %dist .el7
 %el7 1
 %rhel 7
-%devtoolset_16 1
-%devtoolset_14 1
 %_scl_prefix /opt/rh
 %_missing_doc_files_terminate_build 0
 %_unpackaged_files_terminate_build 0

@@ -158,9 +158,9 @@ jobs:
         uses: docker/build-push-action@master
         with:
           context: .ci
-          file: .ci/Dockerfile.dts${{ steps.params.outputs.dts_version }}
+          file: .ci/Dockerfile
           load: true
-          tags: dts${{ steps.params.outputs.dts_version }}-builder:latest
+          tags: dts-builder:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -174,7 +174,7 @@ jobs:
             -e RELEASE="${{ steps.params.outputs.do_release }}" \
             -e BUNDLE_PREFIX="${{ steps.params.outputs.bundle_prefix }}" \
             -e COMPS="${{ steps.params.outputs.comps }}" \
-            dts${{ steps.params.outputs.dts_version }}-builder:latest \
+            dts-builder:latest \
             bash -c "bash /workspace/devtoolset-${{ steps.params.outputs.dts_version }}/releng/ci-release.sh"
 
       - name: Fix output directory permissions

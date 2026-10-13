@@ -23,7 +23,7 @@ log "===== devtoolset-16 release build (tag=$RELEASE_TAG) ====="
 setup_repos; install_toolchain; setup_dirs
 ensure_autoconf || log "ensure_autoconf fallback to system autoconf"
 ensure_automake || log "ensure_automake fallback to system automake"
-log "toolchain: $(scl enable devtoolset-14 'gcc -v' 2>&1 | tail -1)"
+log "toolchain: $(scl enable devtoolset-12 'gcc -v' 2>&1 | tail -1)"
 log "components: $ORDER"
 
 declare -A RC
@@ -41,7 +41,7 @@ for COMP in $ORDER; do
   install_built_prereqs "$COMP"
   ( while :; do sleep 60; echo "[heartbeat $(date '+%H:%M:%S')] $COMP building..."; done ) &
   HB=$!
-  scl enable devtoolset-14 "rpmbuild -ba --nodeps --nocheck '$SPEC'" 2>&1 | tee "$OUT/logs/$COMP.log"
+  scl enable devtoolset-12 "rpmbuild -ba --nodeps --nocheck '$SPEC'" 2>&1 | tee "$OUT/logs/$COMP.log"
   rc=${PIPESTATUS[0]}
   kill "$HB" 2>/dev/null || true
   RC[$COMP]=$rc

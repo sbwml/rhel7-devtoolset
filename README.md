@@ -20,7 +20,7 @@ Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runti
 | **SCL Name** | `devtoolset-16` | `devtoolset-14` |
 | **Installation Root** | `/opt/rh/devtoolset-16/root` | `/opt/rh/devtoolset-14/root` |
 | **Environment Entry** | `scl enable devtoolset-16 bash` | `scl enable devtoolset-14 bash` |
-| **Bootstrap Compiler**| `devtoolset-14` | `devtoolset-12` |
+| **Bootstrap Compiler**| `devtoolset-12` | `devtoolset-12` |
 
 ---
 
@@ -167,8 +167,7 @@ source /opt/rh/devtoolset-14/enable
 ```
 .
 ├── .ci/
-│   ├── Dockerfile.dts14        # CentOS 7 builder container for devtoolset-14
-│   └── Dockerfile.dts16        # CentOS 7 builder container for devtoolset-16 (uses devtoolset-14)
+│   └── Dockerfile              # Shared CentOS 7 builder container (devtoolset-12 toolchain)
 ├── .github/
 │   └── workflows/
 │       └── build.yml           # GitHub Actions CI/CD workflow (supports DTS 14 & 16)
@@ -177,7 +176,7 @@ source /opt/rh/devtoolset-14/enable
 │   └── specs/
 └── devtoolset-16/              # devtoolset-16 release engineering and specs
     ├── releng/
-    │   ├── ci-common.sh        # Shared environment setup using devtoolset-14 host
+    │   ├── ci-common.sh        # Shared environment setup using devtoolset-12 host
     │   ├── ci-release.sh       # Release orchestration script
     │   ├── el7-compat.py       # Spec compatibility filter for RPM 4.11
     │   ├── scl-wire.py         # SCL macro injector
@@ -209,34 +208,25 @@ The GitHub Actions workflow (`.github/workflows/build.yml`) supports building bo
 
 ### Building Locally with Docker
 
-Prerequisites: Docker with access to CentOS 7 mirror repositories and `el7.cooluc.com`.
-
-#### Build devtoolset-16
+Prerequisites: Docker with access to CentOS 7 mirror repositories.
 
 ```bash
-# 1. Build the builder image (pre-installs devtoolset-14)
-docker build -t dts16-builder -f .ci/Dockerfile.dts16 .ci
+# 1. Build the shared builder image (devtoolset-12 toolchain)
+docker build -t dts-builder -f .ci/Dockerfile .ci
 
-# 2. Build the full devtoolset-16 release
+# 2. Build devtoolset-16
 docker run --rm \
   -v "$PWD:/workspace" \
   -v "$PWD/out:/out" \
   -e RELEASE_TAG=16.2.1 \
-  dts16-builder bash /workspace/devtoolset-16/releng/ci-release.sh
-```
+  dts-builder bash /workspace/devtoolset-16/releng/ci-release.sh
 
-#### Build devtoolset-14
-
-```bash
-# 1. Build the builder image (bootstraps with devtoolset-12)
-docker build -t dts14-builder -f .ci/Dockerfile.dts14 .ci
-
-# 2. Build the full devtoolset-14 release
+# Or build devtoolset-14
 docker run --rm \
   -v "$PWD:/workspace" \
   -v "$PWD/out:/out" \
   -e RELEASE_TAG=14.3.1 \
-  dts14-builder bash /workspace/devtoolset-14/releng/ci-release.sh
+  dts-builder bash /workspace/devtoolset-14/releng/ci-release.sh
 ```
 
 ---
@@ -244,9 +234,9 @@ docker run --rm \
 ## Technical Notes
 
 1. **Bootstrap Toolchain**:
-   - GCC 16 requires a modern C++ host compiler with C++17 support. `devtoolset-16` utilizes `devtoolset-14` as the host bootstrap compiler from `https://el7.cooluc.com/devtoolset-el7.repo`.
+   - GCC 16 and GCC 14 utilize `devtoolset-12` (GCC 12) as the host bootstrap compiler.
 2. **Single-Stage Build**:
-   - GCC 16 builds with `--disable-bootstrap` under the verified `devtoolset-14` host compiler to fit execution within CI timeouts.
+   - GCC 16 builds with `--disable-bootstrap` under the verified `devtoolset-12` host compiler to fit execution within CI timeouts.
 3. **RPM 4.11 Compatibility**:
    - Upstream EL10 specs utilize RPM 4.19+ constructs (`%autochangelog`, `%autorelease`, `%patch -P`, `%patchN`, boolean dependency syntax). `el7-compat.py` and `macros.el7-compat` rewrite these constructs into forms compatible with RPM 4.11.
 4. **SCL Isolation**:
