@@ -512,7 +512,7 @@ for the GNU standard C++ library.
 %package gfortran
 Summary: Fortran support for GCC %{gcc_major}
 Requires: %{?scl_prefix}gcc%{!?scl:13} = %{version}-%{release}
-Requires: libgfortran >= 8.1.1
+Requires: %{?scl_prefix}libgfortran = %{version}-%{release}
 Autoreq: true
 Requires(post): /sbin/install-info
 Requires(preun): /sbin/install-info
@@ -528,6 +528,14 @@ Autoreq: true
 %description gfortran
 The %{?scl_prefix}gcc%{!?scl:13}-gfortran package provides support for compiling Fortran
 programs with the GNU Compiler Collection.
+
+%package -n %{?scl_prefix}libgfortran
+Summary: Fortran runtime
+Autoreq: true
+
+%description -n %{?scl_prefix}libgfortran
+This package contains Fortran shared library which is needed to run
+Fortran dynamically linked programs.
 
 
 %package gdb-plugin
@@ -1615,7 +1623,7 @@ echo '/* GNU ld script
    Use the shared library, but some functions are only in
    the static library, so try that secondarily.  */
 %{oformat}
-INPUT ( %{?scl:%{_root_prefix}}%{!?scl:%{_prefix}}/%{_lib}/libgfortran.so.5 -lgfortran_nonshared )' > libgfortran.so
+INPUT ( %{_prefix}/%{_lib}/libgfortran.so.5 -lgfortran_nonshared )' > libgfortran.so
 %if %{build_libquadmath}
 rm -f libquadmath.so
 echo '/* GNU ld script */
@@ -1717,7 +1725,7 @@ echo '/* GNU ld script
    Use the shared library, but some functions are only in
    the static library, so try that secondarily.  */
 %{oformat2}
-INPUT ( %{?scl:%{_root_prefix}}%{!?scl:%{_prefix}}/lib64/libgfortran.so.5 -lgfortran_nonshared )' > 64/libgfortran.so
+INPUT ( %{_prefix}/lib64/libgfortran.so.5 -lgfortran_nonshared )' > 64/libgfortran.so
 echo '/* GNU ld script */
 %{oformat2}
 INPUT ( %{?scl:%{_root_prefix}}%{!?scl:%{_prefix}}/lib64/libgomp.so.1 )' > 64/libgomp.so
@@ -1805,7 +1813,7 @@ echo '/* GNU ld script
    Use the shared library, but some functions are only in
    the static library, so try that secondarily.  */
 %{oformat2}
-INPUT ( %{?scl:%{_root_prefix}}%{!?scl:%{_prefix}}/lib/libgfortran.so.5 -lgfortran_nonshared )' > 32/libgfortran.so
+INPUT ( %{_prefix}/lib/libgfortran.so.5 -lgfortran_nonshared )' > 32/libgfortran.so
 
 echo '/* GNU ld script */
 %{oformat2}
@@ -2059,7 +2067,7 @@ cd ..
 
 # Remove binaries we will not be including, so that they don't end up in
 # gcc-debuginfo
-rm -f %{buildroot}%{_prefix}/%{_lib}/{libffi*,libiberty.a,libstdc++*,libgfortran*} || :
+rm -f %{buildroot}%{_prefix}/%{_lib}/{libffi*,libiberty.a,libstdc++*} || :
 rm -f %{buildroot}%{_prefix}/%{_lib}/{libquadmath*,libitm*,libatomic*,libasan*,libtsan*,libubsan*,liblsan*}
 rm -f %{buildroot}%{_prefix}/%{_lib}/libgomp*
 rm -f %{buildroot}/%{_lib}/libgcc_s*
@@ -2244,6 +2252,10 @@ if [ $1 = 0 -a -f %{_infodir}/gfortran.info.gz ]; then
     --info-dir=%{_infodir} %{_infodir}/gfortran.info.gz || :
 fi
 %endif
+
+%post -n %{?scl_prefix}libgfortran -p /sbin/ldconfig
+
+%postun -n %{?scl_prefix}libgfortran -p /sbin/ldconfig
 
 %post gdb-plugin -p /sbin/ldconfig
 
@@ -2880,6 +2892,9 @@ fi
 %{_prefix}/lib/gcc/%{gcc_target_platform}/%{gcc_major}/lib64/libgfortran_nonshared.a
 %endif
 %doc rpm.doc/gfortran/*
+
+%files -n %{?scl_prefix}libgfortran
+%{_prefix}/%{_lib}/libgfortran.so.5*
 
 %if %{build_libquadmath}
 %files -n %{?scl_prefix}libquadmath-devel
