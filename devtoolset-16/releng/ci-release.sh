@@ -16,7 +16,7 @@ BUNDLE_PREFIX="${BUNDLE_PREFIX:-}"
 source "$SRCDIR/releng/ci-common.sh"
 set +e
 
-ALL_ORDER="automake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
+ALL_ORDER="xxhash babeltrace boost183 automake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
 ORDER="${COMPS:-$ALL_ORDER}"
 
 log "===== devtoolset-16 release build (tag=$RELEASE_TAG) ====="
@@ -45,6 +45,14 @@ for COMP in $ORDER; do
   kill "$HB" 2>/dev/null || true
   RC[$COMP]=$rc
   echo ">>> $COMP rc=$rc"
+  if [ "$rc" = 0 ]; then
+    case "$COMP" in
+      xxhash|babeltrace|boost183)
+        rpm -Uvh --nodeps --force "$OUT/rpms"/*"$COMP"*.rpm 2>/dev/null || true
+        [ "$COMP" = "boost183" ] && setup_boost_env
+        ;;
+    esac
+  fi
   if [ "$rc" != 0 ]; then
     echo "--- $COMP failure summary ---"
     grep -iE "error:|Error [0-9]|Bad exit status|No targets|File not found by glob|not found" \

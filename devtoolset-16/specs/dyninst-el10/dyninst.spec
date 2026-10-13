@@ -21,7 +21,7 @@ BuildRequires: gcc-c++
 BuildRequires: elfutils-devel
 BuildRequires: elfutils-libelf-devel
 BuildRequires: elfutils-debuginfod-client-devel
-BuildRequires: boost-devel
+BuildRequires: boost183-devel
 BuildRequires: binutils-devel
 BuildRequires: cmake
 BuildRequires: libtirpc-devel
@@ -55,7 +55,7 @@ Summary: Header files for compiling programs with Dyninst
 Group: Development/System
 Requires: %{?scl_prefix}dyninst = %{version}-%{release}
 Requires: %{?scl_prefix}elfutils-devel
-Requires: boost-devel
+Requires: boost183-devel
 Requires: tbb-devel
 License: LGPL-2.1-or-later AND BSD-3-Clause AND MIT
 # FindTBB.cmake: presumed MIT, removed in next version of dyninst

@@ -95,43 +95,63 @@ install_toolchain() {
 }
 
 install_epel_extras() {
-  echo ">>> Installing EPEL 7 dependencies (xxhash / cmake3 / babeltrace)"
-  yum -y --nogpgcheck --enablerepo=epel-archive install \
-    xxhash-devel \
-    cmake3 cmake3-data \
-    libbabeltrace libbabeltrace-devel \
-    boost169-devel \
-    2>&1 | tail -25 || true
-  if [ -d /usr/include/boost169 ]; then
-    ln -sfn /usr/include/boost169 /usr/local/include/boost169
-    for so in /usr/lib64/libboost_*.so.*.*; do
-      [ -e "$so" ] || continue
-      b=$(basename "$so")
-      stem=${b%%.so.*}
-      case "$stem" in *-mt) continue;; esac
-      ln -sfn "$so" "/usr/lib64/${stem}.so"
-      ln -sfn "$so" "/usr/lib64/${stem}-mt.so"
-    done
-    for a in /usr/lib64/libboost_*-mt-1.69.a; do
-      [ -e "$a" ] || continue
-      b=$(basename "$a"); ln -sfn "$a" "/usr/lib64/${b/-1.69/}"
-    done
-    export CPLUS_INCLUDE_PATH="/usr/include/boost169${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
-    export C_INCLUDE_PATH="/usr/include/boost169${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+  echo ">>> Checking build-time prerequisites"
+  if ! rpm -q xxhash-devel >/dev/null 2>&1; then
+    yum -y --nogpgcheck --enablerepo=epel-archive install xxhash-devel 2>&1 | tail -5 || true
   fi
+  if ! rpm -q cmake3 >/dev/null 2>&1; then
+    yum -y --nogpgcheck --enablerepo=epel-archive install cmake3 cmake3-data 2>&1 | tail -5 || true
+  fi
+  if ! rpm -q libbabeltrace-devel >/dev/null 2>&1; then
+    yum -y --nogpgcheck --enablerepo=epel-archive install libbabeltrace libbabeltrace-devel 2>&1 | tail -5 || true
+  fi
+  if ! rpm -q boost183-devel >/dev/null 2>&1 && ! rpm -q boost169-devel >/dev/null 2>&1; then
+    yum -y --nogpgcheck --enablerepo=epel-archive install boost169-devel 2>&1 | tail -5 || true
+  fi
+  setup_boost_env
   if [ -x /usr/bin/cmake3 ]; then
     ln -sf /usr/bin/cmake3 /usr/local/bin/cmake
   fi
-  install_boost_header_overlay
-  install_boost_cmake_shim
   install_tbb_shim
   rpm -q xxhash-devel >/dev/null 2>&1 || echo "!! xxhash-devel not installed"
   command -v cmake >/dev/null && cmake --version | head -1
 }
 
+setup_boost_env() {
+  local inc=/usr/include/boost183
+  if [ ! -d "$inc" ]; then
+    inc=/usr/include/boost169
+  fi
+  if [ -d "$inc" ]; then
+    ln -sfn "$inc" "/usr/local/include/$(basename "$inc")"
+    for so in /usr/lib64/libboost_*.so.*.*; do
+      [ -e "$so" ] || continue
+      b=$(basename "$so")
+      stem=${b%%.so.*}
+      case "$stem" in *-mt) continue;; esac
+      ln -sfn "$so" "/usr/lib64/${stem}.so" 2>/dev/null || true
+      ln -sfn "$so" "/usr/lib64/${stem}-mt.so" 2>/dev/null || true
+    done
+    for l in /usr/lib64/boost183/libboost_*.so; do
+      [ -e "$l" ] || continue
+      b=$(basename "$l")
+      ln -sfn "$l" "/usr/lib64/$b" 2>/dev/null || true
+    done
+    for a in /usr/lib64/libboost_*-mt-*.a; do
+      [ -e "$a" ] || continue
+      b=$(basename "$a"); ln -sfn "$a" "/usr/lib64/${b/-mt/}" 2>/dev/null || true
+    done
+    export CPLUS_INCLUDE_PATH="$inc${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+    export C_INCLUDE_PATH="$inc${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+  fi
+  install_boost_header_overlay
+  install_boost_cmake_shim
+}
+
 install_boost_header_overlay() {
-  local inc=/usr/include/boost169/boost
-  [ -d "$inc" ] || { echo "!! boost169 headers not found, skip overlay"; return 0; }
+  local inc=/usr/include/boost183/boost
+  [ -d "$inc" ] || inc=/usr/include/boost169/boost
+  [ -d "$inc" ] || { echo "!! boost headers not found, skip overlay"; return 0; }
   if [ -f "$inc/variant2/variant.hpp" ]; then
     echo ">>> boost header overlay ready"
     return 0
@@ -161,75 +181,76 @@ install_boost_header_overlay() {
 }
 
 install_boost_cmake_shim() {
-  local inc=/usr/include/boost169 libdir=/usr/lib64
-  [ -d "$inc" ] || { echo "!! boost169 headers not found, skip Boost shim"; return 0; }
+  local inc=/usr/include/boost183 libdir=/usr/lib64 ver=1.83.0 maj=1 min=83 bver=108300
+  if [ ! -d "$inc" ]; then
+    inc=/usr/include/boost169
+    ver=1.69.0; maj=1; min=69; bver=106900
+  fi
+  [ -d "$inc" ] || { echo "!! boost headers not found, skip Boost shim"; return 0; }
   local dest=/usr/local/lib64/cmake/Boost
   mkdir -p "$dest"
-  cat > "$dest/BoostConfig.cmake" <<'BOOSTEOF'
+  cat > "$dest/BoostConfig.cmake" <<BOOSTEOF
 set(Boost_NO_WARN_NEW_VERSIONS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 set(Boost_ROOT "/usr")
-set(Boost_INCLUDE_DIR "/usr/include/boost169")
-set(Boost_INCLUDE_DIRS "/usr/include/boost169")
+set(Boost_INCLUDE_DIR "$inc")
+set(Boost_INCLUDE_DIRS "$inc")
 set(Boost_LIBRARY_DIR "/usr/lib64")
 
-set(Boost_VERSION 1.69.0)
-set(Boost_VERSION_STRING "1.69.0")
-set(Boost_MAJOR_VERSION 1)
-set(Boost_MINOR_VERSION 69)
+set(Boost_VERSION $ver)
+set(Boost_VERSION_STRING "$ver")
+set(Boost_MAJOR_VERSION $maj)
+set(Boost_MINOR_VERSION $min)
 set(Boost_SUBMINOR_VERSION 0)
-set(BOOST_VERSION 106900)
+set(BOOST_VERSION $bver)
 set(Boost_FOUND TRUE)
 
 foreach(_comp atomic chrono date_time filesystem thread timer)
-  find_library(Boost_${_comp}_LIBRARY_REAL
-    NAMES boost_${_comp}-mt boost_${_comp}
-    PATHS /usr/lib64 /usr/lib /usr/local/lib64
+  find_library(Boost_\${_comp}_LIBRARY_REAL
+    NAMES boost_\${_comp}-mt boost_\${_comp} boost_\${_comp}-mt-$ver boost_\${_comp}-$ver
+    PATHS /usr/lib64 /usr/lib /usr/local/lib64 /usr/lib64/boost183
     NO_DEFAULT_PATH)
-  if(NOT Boost_${_comp}_LIBRARY_REAL)
-    message(FATAL_ERROR "Boost shim: boost_${_comp} library not found")
+  if(NOT Boost_\${_comp}_LIBRARY_REAL)
+    message(FATAL_ERROR "Boost shim: boost_\${_comp} library not found")
   endif()
-  if(NOT TARGET Boost::${_comp})
-    add_library(Boost::${_comp} UNKNOWN IMPORTED)
-    set_target_properties(Boost::${_comp} PROPERTIES
-      IMPORTED_LOCATION "${Boost_${_comp}_LIBRARY_REAL}"
-      INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}")
+  if(NOT TARGET Boost::\${_comp})
+    add_library(Boost::\${_comp} UNKNOWN IMPORTED)
+    set_target_properties(Boost::\${_comp} PROPERTIES
+      IMPORTED_LOCATION "\${Boost_\${_comp}_LIBRARY_REAL}"
+      INTERFACE_INCLUDE_DIRECTORIES "\${Boost_INCLUDE_DIRS}")
   endif()
-  list(APPEND Boost_LIBRARIES Boost::${_comp})
+  list(APPEND Boost_LIBRARIES Boost::\${_comp})
 endforeach()
 
 if(NOT TARGET Boost::headers)
   add_library(Boost::headers INTERFACE IMPORTED)
   set_target_properties(Boost::headers PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}")
+    INTERFACE_INCLUDE_DIRECTORIES "\${Boost_INCLUDE_DIRS}")
 endif()
 
 if(TARGET Boost::headers AND Boost_LIBRARIES)
   set_target_properties(Boost::headers PROPERTIES
-    INTERFACE_LINK_LIBRARIES "${Boost_LIBRARIES}")
+    INTERFACE_LINK_LIBRARIES "\${Boost_LIBRARIES}")
 endif()
 
-message(STATUS "Boost(shim) ${Boost_VERSION} include=${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost(shim) \${Boost_VERSION} include=\${Boost_INCLUDE_DIRS}")
 BOOSTEOF
-  cat > "$dest/BoostConfigVersion.cmake" <<'BOOSTVEREOF'
-set(PACKAGE_VERSION "1.69.0")
-if(PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION)
-  set(PACKAGE_VERSION_COMPATIBLE FALSE)
-else()
-  set(PACKAGE_VERSION_COMPATIBLE TRUE)
-  if(PACKAGE_FIND_VERSION STREQUAL PACKAGE_VERSION)
-    set(PACKAGE_VERSION_EXACT TRUE)
-  endif()
-endif()
+  cat > "$dest/BoostConfigVersion.cmake" <<BOOSTVEREOF
+set(PACKAGE_VERSION "$ver")
 set(PACKAGE_VERSION_COMPATIBLE TRUE)
+if(PACKAGE_FIND_VERSION STREQUAL PACKAGE_VERSION)
+  set(PACKAGE_VERSION_EXACT TRUE)
+fi
 BOOSTVEREOF
 
-  for l in /usr/lib64/libboost_*-mt-1.69.so; do
+  for l in /usr/lib64/libboost_*-mt-1.69.so /usr/lib64/libboost_*-1.83.so* /usr/lib64/boost183/libboost_*.so; do
     [ -e "$l" ] || continue
-    b=$(basename "$l"); ln -sfn "$l" "/usr/lib64/${b/-1.69/}"
+    b=\$(basename "$l")
+    stem=\${b%%.so.*}
+    ln -sfn "$l" "/usr/lib64/\${stem}.so" 2>/dev/null || true
   done
-  echo ">>> Boost cmake shim: $dest/BoostConfig.cmake (boost169/1.69)"
+  echo ">>> Boost cmake shim: $dest/BoostConfig.cmake (boost $ver)"
 }
 
 install_tbb_shim() {
@@ -425,6 +446,9 @@ prepare_spec() {
 
 scl_wire_generic() {
   local out="$1" comp="$2"
+  case "$comp" in
+    xxhash|babeltrace|boost|boost183) return 0;;
+  esac
   [ -f "$SRCDIR/releng/scl-wire.py" ] || return 0
   python3 "$SRCDIR/releng/scl-wire.py" "$out" "$comp" || true
 }
@@ -494,14 +518,45 @@ PYEOF
 install_built_prereqs() {
   local comp="$1"
   case "$comp" in
+    dwz)
+      local rpms
+      rpms=$(find "$OUT/rpms" -name 'xxhash*.rpm' 2>/dev/null | sort)
+      if [ -n "$rpms" ]; then
+        log "install prereq xxhash -> build environment"
+        rpm -Uvh --nodeps --force $rpms 2>&1 | tail -5
+      fi
+      ;;
+    binutils)
+      local rpms
+      rpms=$(find "$OUT/rpms" -name 'xxhash*.rpm' 2>/dev/null | sort)
+      if [ -n "$rpms" ]; then
+        log "install prereq xxhash -> build environment"
+        rpm -Uvh --nodeps --force $rpms 2>&1 | tail -5
+      fi
+      ;;
+    gdb)
+      local rpms
+      rpms=$(find "$OUT/rpms" \( -name '*babeltrace*.rpm' -o -name 'xxhash*.rpm' \) 2>/dev/null | sort)
+      if [ -n "$rpms" ]; then
+        log "install prereq babeltrace/xxhash -> build environment"
+        rpm -Uvh --nodeps --force $rpms 2>&1 | tail -5
+      fi
+      ;;
     dyninst)
       local rpms
-      rpms=$(find "$OUT/rpms" -name 'devtoolset-16-elfutils*.rpm' \
-             ! -name '*debuginfod*' ! -name '*default-yama*' 2>/dev/null | sort)
+      rpms=$(find "$OUT/rpms" -name 'boost183*.rpm' 2>/dev/null | sort)
       if [ -n "$rpms" ]; then
+        log "install prereq boost183 -> build environment"
+        rpm -Uvh --nodeps --force $rpms 2>&1 | tail -5
+        setup_boost_env
+      fi
+      local elf_rpms
+      elf_rpms=$(find "$OUT/rpms" -name 'devtoolset-16-elfutils*.rpm' \
+             ! -name '*debuginfod*' ! -name '*default-yama*' 2>/dev/null | sort)
+      if [ -n "$elf_rpms" ]; then
         log "install prereq elfutils -> build environment"
         # shellcheck disable=SC2086
-        rpm -Uvh --nodeps --force $rpms 2>&1 | tail -5
+        rpm -Uvh --nodeps --force $elf_rpms 2>&1 | tail -5
         local pc="/opt/rh/devtoolset-16/root/usr/lib64/pkgconfig"
         export PKG_CONFIG_PATH="$pc:${PKG_CONFIG_PATH:-}"
         export CMAKE_PREFIX_PATH="/opt/rh/devtoolset-16/root/usr:${CMAKE_PREFIX_PATH:-}"

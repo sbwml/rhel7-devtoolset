@@ -12,7 +12,7 @@ setup_repos; install_toolchain; setup_dirs
 log "toolchain: $(scl enable devtoolset-12 'gcc -v' 2>&1 | tail -1)"
 ensure_automake || log "!! ensure_automake failed, falling back to system automake"
 
-ORDER="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
+ORDER="xxhash babeltrace boost183 dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
 
 declare -A RC
 for COMP in $ORDER; do
