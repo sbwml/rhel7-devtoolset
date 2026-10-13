@@ -22,7 +22,6 @@ Upstream repository mirror: `https://mirror.sjtu.edu.cn/rocky/10/<repo>/source/t
 | valgrind | `valgrind-3.26.0-5.el10.src.rpm` | 3.26.0 | AppStream |
 | xxhash | `xxhash-0.8.2-11.el10.src.rpm` | 0.8.2 | AppStream |
 | babeltrace | `babeltrace-1.5.11-8.el10.src.rpm` | 1.5.11 | AppStream |
-| boost183 | `boost183-1.83.0-8.el10.src.rpm` | 1.83.0 | AppStream |
 | meta | N/A | 14.1 | devtoolset-14 |
 
 > Note: `oprofile` and `memstomp` were removed in EL10 upstream and are not delivered in devtoolset-14.

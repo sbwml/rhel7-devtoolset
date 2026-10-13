@@ -107,7 +107,7 @@ jobs:
                 BUNDLE_PREFIX="dep_"
                 ;;
               prereqs)
-                COMPS="xxhash babeltrace boost183 autoconf"
+                COMPS="xxhash babeltrace autoconf"
                 BUNDLE_PREFIX="prereqs_"
                 ;;
               gcc)
@@ -123,9 +123,6 @@ jobs:
                 if [ -z "$COMPS" ]; then
                   echo "Error: target is 'component' but no component was specified" >&2
                   exit 1
-                fi
-                if [ "$COMPS" = "boost" ]; then
-                  COMPS="boost183"
                 fi
                 BUNDLE_PREFIX="${COMPS}_"
                 ;;

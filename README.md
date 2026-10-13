@@ -46,7 +46,6 @@ Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runti
 | Valgrind | 3.26.0 | `valgrind-3.26.0-5.el10.src.rpm` | `devtoolset-16-valgrind` |
 | xxHash (Prerequisite) | 0.8.2 | `xxhash-0.8.2-11.el10.src.rpm` | `xxhash` |
 | Babeltrace (Prerequisite) | 1.5.11 | `babeltrace-1.5.11-8.el10.src.rpm` | `babeltrace` |
-| Boost 1.83 (Prerequisite) | 1.83.0 | `boost183-1.83.0-8.el10.src.rpm` | `boost183` |
 | Metapackages | 16.0 | `gcc-toolset-16-16.0-1.el10.src.rpm` | `devtoolset-16` |
 
 For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-16/releng/EL10-BASELINE.md).
@@ -71,7 +70,6 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 | Valgrind | 3.26.0 | `valgrind-3.26.0-5.el10.src.rpm` | `devtoolset-14-valgrind` |
 | xxHash (Prerequisite) | 0.8.2 | `xxhash-0.8.2-11.el10.src.rpm` | `xxhash` |
 | Babeltrace (Prerequisite) | 1.5.11 | `babeltrace-1.5.11-8.el10.src.rpm` | `babeltrace` |
-| Boost 1.83 (Prerequisite) | 1.83.0 | `boost183-1.83.0-8.el10.src.rpm` | `boost183` |
 | Metapackages | 14.1 | N/A | `devtoolset-14` |
 
 For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-14/releng/EL10-BASELINE.md).

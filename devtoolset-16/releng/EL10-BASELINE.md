@@ -22,7 +22,6 @@ Upstream repository mirror: `http://mirror.stream.centos.org/10-stream/AppStream
 | valgrind | `valgrind-3.26.0-5.el10.src.rpm` | 3.26.0 | AppStream |
 | xxhash | `xxhash-0.8.2-11.el10.src.rpm` | 0.8.2 | AppStream |
 | babeltrace | `babeltrace-1.5.11-8.el10.src.rpm` | 1.5.11 | AppStream |
-| boost183 | `boost183-1.83.0-8.el10.src.rpm` | 1.83.0 | AppStream |
 | meta | `gcc-toolset-16-16.0-1.el10.src.rpm` | 16.0 | AppStream |
 
 > Note: `oprofile` and `memstomp` were removed in EL10 upstream and are not delivered in devtoolset-16.

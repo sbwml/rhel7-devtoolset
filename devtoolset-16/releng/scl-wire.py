@@ -11,7 +11,7 @@ src = open(path, encoding='utf-8', errors='replace').read()
 if 'scl_package' in src:
     sys.exit(0)
 
-if pkg in ('xxhash', 'babeltrace', 'boost', 'boost183'):
+if pkg in ('xxhash', 'babeltrace', 'boost'):
     sys.exit(0)
 
 pre = (
@@ -64,13 +64,11 @@ def _cmake_head(m):
 src = re.sub(r'^(?P<indent>\s*)%cmake\b(?P<rest>[^\n]*)$', _cmake_head, src, flags=re.M)
 
 if pkg == 'dyninst':
-    import os
-    _binc = '/usr/include/boost183' if os.path.exists('/usr/include/boost183') else '/usr/include/boost169'
     src = src.replace(
         '%__cmake . ',
         '%__cmake . -DBoost_DIR:PATH=/usr/local/lib64/cmake/Boost '
         '-DBoost_ROOT_DIR:PATH=/usr '
-        f'-DBoost_INCLUDE_DIR:PATH={_binc} '
+        '-DBoost_INCLUDE_DIR:PATH=/usr/include/boost169 '
         '-DTBB_DIR:PATH=/usr/local/lib64/cmake/TBB ')
     src = re.sub(r'-DENABLE_DEBUGINFOD=1', '-DENABLE_DEBUGINFOD=0', src)
 

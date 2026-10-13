@@ -13,7 +13,7 @@ log "toolchain: $(scl enable devtoolset-14 'gcc -v' 2>&1 | tail -1)"
 ensure_autoconf || log "!! ensure_autoconf failed, falling back to system autoconf"
 ensure_automake || log "!! ensure_automake failed, falling back to system automake"
 
-ORDER="xxhash babeltrace boost183 dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
+ORDER="xxhash babeltrace dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
 
 declare -A RC
 for COMP in $ORDER; do
