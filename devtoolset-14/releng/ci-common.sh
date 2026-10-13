@@ -68,6 +68,7 @@ install_toolchain() {
     gdb-headless pkgconfig libstdc++-static glibc-static zlib-static \
     bzip2-devel guile-devel texinfo help2man iso-codes \
     wget curl tar xz bzip2 cpio sudo which file help2man autoconf automake \
+    libuuid-devel popt-devel glib2-devel \
     systemtap-sdt-devel >/dev/null 2>&1 || true
   yum -y install clang llvm llvm-devel compiler-rt >/dev/null 2>&1 || true
   yum -y install dyninst-devel dyninst >/dev/null 2>&1 || true
@@ -505,6 +506,12 @@ PYEOF
 install_built_prereqs() {
   local comp="$1"
   case "$comp" in
+    babeltrace)
+      if ! rpm -q libuuid-devel popt-devel glib2-devel >/dev/null 2>&1; then
+        log "install build requirements for babeltrace (libuuid-devel, popt-devel, glib2-devel)"
+        yum -y install libuuid-devel popt-devel glib2-devel 2>&1 | tail -5 || true
+      fi
+      ;;
     dwz)
       local rpms
       rpms=$(find "$OUT/rpms" -name 'xxhash*.rpm' 2>/dev/null | sort)
