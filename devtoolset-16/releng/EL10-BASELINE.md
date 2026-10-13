@@ -10,6 +10,7 @@ Upstream repository mirror: `http://mirror.stream.centos.org/10-stream/AppStream
 | binutils | `gcc-toolset-16-binutils-2.46-3.el10.src.rpm` | 2.46 | AppStream |
 | make | `make-4.4.1-9.el10.src.rpm` | 4.4.1 | BaseOS |
 | autoconf | `autoconf-2.71-13.el10.src.rpm` | 2.71 | AppStream |
+| automake | `automake-1.16.1-8.el8.src.rpm` | 1.16.1 | AppStream |
 | elfutils | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | 0.194 | BaseOS |
 | strace | `strace-6.12-3.el10.src.rpm` | 6.12 | BaseOS |
 | annobin | `annobin-13.02-2.el10.src.rpm` | 13.02 | AppStream |
@@ -19,6 +20,9 @@ Upstream repository mirror: `http://mirror.stream.centos.org/10-stream/AppStream
 | ltrace | `ltrace-0.7.91-53.el10.src.rpm` | 0.7.91 | AppStream |
 | systemtap | `systemtap-5.4-3.el10.src.rpm` | 5.4 | AppStream |
 | valgrind | `valgrind-3.26.0-5.el10.src.rpm` | 3.26.0 | AppStream |
+| xxhash | `xxhash-0.8.2-11.el10.src.rpm` | 0.8.2 | AppStream |
+| babeltrace | `babeltrace-1.5.11-8.el10.src.rpm` | 1.5.11 | AppStream |
+| boost183 | `boost183-1.83.0-8.el10.src.rpm` | 1.83.0 | AppStream |
 | meta | `gcc-toolset-16-16.0-1.el10.src.rpm` | 16.0 | AppStream |
 
 > Note: `oprofile` and `memstomp` were removed in EL10 upstream and are not delivered in devtoolset-16.

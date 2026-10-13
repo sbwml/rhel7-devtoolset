@@ -7,8 +7,10 @@ Upstream repository mirror: `https://mirror.sjtu.edu.cn/rocky/10/<repo>/source/t
 | Component | Upstream SRPM | Version | Repository |
 |---|---|---|---|
 | gcc / gcc-c++ / gcc-gfortran | `gcc-14.3.1-4.4.el10.src.rpm` | 14.3.1 | BaseOS |
-| make | `make-4.4.1-9.el10.src.rpm` | 4.4.1 | BaseOS |
 | binutils | `binutils-2.41-63.el10.src.rpm` | 2.41 | BaseOS |
+| make | `make-4.4.1-9.el10.src.rpm` | 4.4.1 | BaseOS |
+| autoconf | `autoconf-2.71-13.el10.src.rpm` | 2.71 | AppStream |
+| automake | `automake-1.16.1-8.el8.src.rpm` | 1.16.1 | AppStream |
 | elfutils | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | 0.194 | BaseOS |
 | strace | `strace-6.12-3.el10.src.rpm` | 6.12 | BaseOS |
 | annobin | `annobin-13.02-2.el10.src.rpm` | 13.02 | AppStream |
@@ -18,6 +20,10 @@ Upstream repository mirror: `https://mirror.sjtu.edu.cn/rocky/10/<repo>/source/t
 | ltrace | `ltrace-0.7.91-53.el10.src.rpm` | 0.7.91 | AppStream |
 | systemtap | `systemtap-5.4-3.el10.src.rpm` | 5.4 | AppStream |
 | valgrind | `valgrind-3.26.0-5.el10.src.rpm` | 3.26.0 | AppStream |
+| xxhash | `xxhash-0.8.2-11.el10.src.rpm` | 0.8.2 | AppStream |
+| babeltrace | `babeltrace-1.5.11-8.el10.src.rpm` | 1.5.11 | AppStream |
+| boost183 | `boost183-1.83.0-8.el10.src.rpm` | 1.83.0 | AppStream |
+| meta | N/A | 14.1 | devtoolset-14 |
 
 > Note: `oprofile` and `memstomp` were removed in EL10 upstream and are not delivered in devtoolset-14.
 

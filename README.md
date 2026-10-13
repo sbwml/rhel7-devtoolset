@@ -33,6 +33,8 @@ Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runti
 | GCC (C, C++, Fortran) | 16.2.1 | `gcc-toolset-16-gcc-16.2.1-1.2.el10.src.rpm` | `devtoolset-16-gcc` |
 | Binutils | 2.46 | `gcc-toolset-16-binutils-2.46-3.el10.src.rpm` | `devtoolset-16-binutils` |
 | Make | 4.4.1 | `make-4.4.1-9.el10.src.rpm` | `devtoolset-16-make` |
+| Autoconf | 2.71 | `autoconf-2.71-13.el10.src.rpm` | `devtoolset-16-autoconf` |
+| Automake | 1.16.1 | `automake-1.16.1-8.el8.src.rpm` | `devtoolset-16-automake` |
 | Elfutils | 0.194 | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | `devtoolset-16-elfutils` |
 | Strace | 6.12 | `strace-6.12-3.el10.src.rpm` | `devtoolset-16-strace` |
 | Annobin | 13.02 | `annobin-13.02-2.el10.src.rpm` | `devtoolset-16-annobin` |
@@ -42,6 +44,9 @@ Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runti
 | Ltrace | 0.7.91 | `ltrace-0.7.91-53.el10.src.rpm` | `devtoolset-16-ltrace` |
 | SystemTap | 5.4 | `systemtap-5.4-3.el10.src.rpm` | `devtoolset-16-systemtap` |
 | Valgrind | 3.26.0 | `valgrind-3.26.0-5.el10.src.rpm` | `devtoolset-16-valgrind` |
+| xxHash (Prerequisite) | 0.8.2 | `xxhash-0.8.2-11.el10.src.rpm` | `xxhash` |
+| Babeltrace (Prerequisite) | 1.5.11 | `babeltrace-1.5.11-8.el10.src.rpm` | `babeltrace` |
+| Boost 1.83 (Prerequisite) | 1.83.0 | `boost183-1.83.0-8.el10.src.rpm` | `boost183` |
 | Metapackages | 16.0 | `gcc-toolset-16-16.0-1.el10.src.rpm` | `devtoolset-16` |
 
 For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-16/releng/EL10-BASELINE.md).
@@ -53,6 +58,8 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 | GCC (C, C++, Fortran) | 14.3.1 | `gcc-14.3.1-4.4.el10.src.rpm` | `devtoolset-14-gcc` |
 | Binutils | 2.41 | `binutils-2.41-63.el10.src.rpm` | `devtoolset-14-binutils` |
 | Make | 4.4.1 | `make-4.4.1-9.el10.src.rpm` | `devtoolset-14-make` |
+| Autoconf | 2.71 | `autoconf-2.71-13.el10.src.rpm` | `devtoolset-14-autoconf` |
+| Automake | 1.16.1 | `automake-1.16.1-8.el8.src.rpm` | `devtoolset-14-automake` |
 | Elfutils | 0.194 | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | `devtoolset-14-elfutils` |
 | Strace | 6.12 | `strace-6.12-3.el10.src.rpm` | `devtoolset-14-strace` |
 | Annobin | 13.02 | `annobin-13.02-2.el10.src.rpm` | `devtoolset-14-annobin` |
@@ -62,7 +69,12 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 | Ltrace | 0.7.91 | `ltrace-0.7.91-53.el10.src.rpm` | `devtoolset-14-ltrace` |
 | SystemTap | 5.4 | `systemtap-5.4-3.el10.src.rpm` | `devtoolset-14-systemtap` |
 | Valgrind | 3.26.0 | `valgrind-3.26.0-5.el10.src.rpm` | `devtoolset-14-valgrind` |
+| xxHash (Prerequisite) | 0.8.2 | `xxhash-0.8.2-11.el10.src.rpm` | `xxhash` |
+| Babeltrace (Prerequisite) | 1.5.11 | `babeltrace-1.5.11-8.el10.src.rpm` | `babeltrace` |
+| Boost 1.83 (Prerequisite) | 1.83.0 | `boost183-1.83.0-8.el10.src.rpm` | `boost183` |
 | Metapackages | 14.1 | N/A | `devtoolset-14` |
+
+For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolset-14/releng/EL10-BASELINE.md).
 
 ---
 
