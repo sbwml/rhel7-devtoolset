@@ -9,6 +9,7 @@ Upstream repository mirror: `http://mirror.stream.centos.org/10-stream/AppStream
 | gcc / gcc-c++ / gcc-gfortran | `gcc-toolset-16-gcc-16.2.1-1.2.el10.src.rpm` | 16.2.1 | AppStream |
 | binutils | `gcc-toolset-16-binutils-2.46-3.el10.src.rpm` | 2.46 | AppStream |
 | make | `make-4.4.1-9.el10.src.rpm` | 4.4.1 | BaseOS |
+| autoconf | `autoconf-2.71-13.el10.src.rpm` | 2.71 | AppStream |
 | elfutils | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | 0.194 | BaseOS |
 | strace | `strace-6.12-3.el10.src.rpm` | 6.12 | BaseOS |
 | annobin | `annobin-13.02-2.el10.src.rpm` | 13.02 | AppStream |

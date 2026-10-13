@@ -6,6 +6,7 @@ OUT="${OUT:-/out}"; BUILD_ROOT="${BUILD_ROOT:-/build}"
 source "$SRCDIR/releng/ci-common.sh"; set +e
 setup_repos; install_toolchain; setup_dirs
 log "toolchain: $(scl enable devtoolset-14 'gcc -v' 2>&1 | tail -1)"
+ensure_autoconf || log "!! ensure_autoconf failed, falling back to system autoconf"
 ensure_automake || log "!! ensure_automake failed, falling back to system automake"
 LIST=$(echo "${COMPS:-make}" | tr ',' ' ')
 declare -A RC

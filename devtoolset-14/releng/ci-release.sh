@@ -16,11 +16,12 @@ BUNDLE_PREFIX="${BUNDLE_PREFIX:-}"
 source "$SRCDIR/releng/ci-common.sh"
 set +e
 
-ALL_ORDER="xxhash babeltrace boost183 automake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
+ALL_ORDER="xxhash babeltrace boost183 autoconf automake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
 ORDER="${COMPS:-$ALL_ORDER}"
 
 log "===== devtoolset-14 release build (tag=$RELEASE_TAG) ====="
 setup_repos; install_toolchain; setup_dirs
+ensure_autoconf || log "ensure_autoconf fallback to system autoconf"
 ensure_automake || log "ensure_automake fallback to system automake"
 log "toolchain: $(scl enable devtoolset-12 'gcc -v' 2>&1 | tail -1)"
 log "components: $ORDER"
@@ -28,7 +29,7 @@ log "components: $ORDER"
 declare -A RC
 for COMP in $ORDER; do
   log "########## $COMP ##########"
-  if [ "$COMP" = "automake" ]; then
+  if [ "$COMP" = "autoconf" ] || [ "$COMP" = "automake" ]; then
     RC[$COMP]=0
     continue
   fi

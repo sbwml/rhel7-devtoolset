@@ -358,6 +358,39 @@ MACRO
   cp -f "$SRCDIR/releng/macros.el7-compat" /etc/rpm/macros.devtoolset-14-compat 2>/dev/null || true
 }
 
+ensure_autoconf() {
+  local have
+  have=$(autoconf --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+  case "$have" in
+    2.7[1-9]|2.[8-9]*) log "autoconf already ${have}, skip"; return 0;;
+  esac
+  log "autoconf: ${have:-none} < 2.71 -> building devtoolset-14-autoconf 2.71"
+  local spec
+  spec=$(prepare_spec autoconf) || { log "!! autoconf spec preparation failed"; return 1; }
+  bash "$SRCDIR/releng/fetch-srcs.sh" autoconf "$BUILD_ROOT/SOURCES" 2>&1 | tail -20
+  ( while :; do sleep 60; echo "[heartbeat $(date '+%H:%M:%S')] autoconf building..."; done ) &
+  local hb=$!
+  scl enable devtoolset-12 "rpmbuild -ba --nodeps --nocheck '$spec'" 2>&1 | tee "$OUT/logs/autoconf.log"
+  local rc=${PIPESTATUS[0]}
+  kill "$hb" 2>/dev/null || true
+  [ "$rc" = 0 ] || { log "!! autoconf build failed rc=$rc"; return "$rc"; }
+  local found
+  found=$(find "$OUT/rpms" -name '*autoconf*.noarch.rpm' -print -quit)
+  [ -n "$found" ] || { log "!! autoconf rpm not found"; return 1; }
+  find "$OUT/rpms" -name '*autoconf*.noarch.rpm' -exec rpm -Uvh --nodeps --force {} + 2>&1 | tail -5
+  if [ -x /opt/rh/devtoolset-14/root/usr/bin/autoconf ]; then
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/autoconf /usr/bin/autoconf
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/autoheader /usr/bin/autoheader
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/autom4te /usr/bin/autom4te
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/autoreconf /usr/bin/autoreconf
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/autoscan /usr/bin/autoscan
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/autoupdate /usr/bin/autoupdate
+    ln -sf /opt/rh/devtoolset-14/root/usr/bin/ifnames /usr/bin/ifnames
+  fi
+  log "autoconf now: $(autoconf --version 2>/dev/null | head -1)"
+  autoconf --version 2>/dev/null | head -1 | grep -qE '2\.7[1-9]|2\.[8-9]'
+}
+
 ensure_automake() {
   local have
   have=$(automake --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)

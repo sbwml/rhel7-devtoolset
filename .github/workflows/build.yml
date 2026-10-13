@@ -107,7 +107,7 @@ jobs:
                 BUNDLE_PREFIX="dep_"
                 ;;
               prereqs)
-                COMPS="xxhash babeltrace boost183"
+                COMPS="xxhash babeltrace boost183 autoconf"
                 BUNDLE_PREFIX="prereqs_"
                 ;;
               gcc)

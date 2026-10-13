@@ -47,6 +47,7 @@ urls_for() {
     memstomp-38573e7d.tar.gz) echo "https://codeload.github.com/wcohen/memstomp/tar.gz/38573e7d";;
     make-4.4.1.tar.gz) echo "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz https://mirrors.ustc.edu.cn/gnu/make/make-4.4.1.tar.gz";;
     automake-1.16.1.tar.xz) echo "https://ftp.gnu.org/gnu/automake/automake-1.16.1.tar.xz https://mirrors.ustc.edu.cn/gnu/automake/automake-1.16.1.tar.xz";;
+    autoconf-2.71.tar.xz) echo "https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.xz https://mirror.sjtu.edu.cn/gnu/autoconf/autoconf-2.71.tar.xz";;
     annobin-13.02.tar.xz) echo "https://nickc.fedorapeople.org/annobin-13.02.tar.xz";;
     binutils-2.41.tar.xz) echo "https://ftp.gnu.org/gnu/binutils/binutils-2.41.tar.xz https://mirrors.ustc.edu.cn/gnu/binutils/binutils-2.41.tar.xz";;
     binutils-with-gold-2.46.tar.xz)
