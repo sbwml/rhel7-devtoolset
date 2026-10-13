@@ -1,6 +1,6 @@
 --- a/cmake/tpls/DyninstBoost.cmake
 +++ b/cmake/tpls/DyninstBoost.cmake
-@@ -26,7 +26,7 @@
+@@ -18,7 +18,7 @@
  include_guard(GLOBAL)
  
  # Need at least 1.71 for a usable BoostConfig.cmake
@@ -9,7 +9,7 @@
  
  # Use multithreaded libraries
  set(Boost_USE_MULTITHREADED ON)
-@@ -58,6 +58,10 @@
+@@ -59,6 +59,10 @@
  
    # Just the headers (effectively a simplified Boost::headers target)
    add_library(Dyninst::Boost_headers INTERFACE IMPORTED)
