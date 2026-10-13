@@ -44,6 +44,7 @@ This project provides development headers and libraries for Babeltrace.
 %prep
 %setup -q
 %patch -P0 -p1
+sed -i 's/enable_python=yes/enable_python=$enableval/' configure configure.ac
 
 %build
 autoreconf -vif
