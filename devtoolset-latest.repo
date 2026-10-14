@@ -1,0 +1,15 @@
+[devtoolset-latest]
+name=Developer Toolset Packages for Enterprise Linux 7 - $basearch
+baseurl=https://el7.cooluc.com/$releasever/Packages
+failovermethod=priority
+enabled=1
+gpgcheck=1
+gpgkey=https://el7.cooluc.com/RPM-GPG-KEY-COOLUC-7
+
+[devtoolset-latest-source]
+name=Developer Toolset Packages for Enterprise Linux 7 - $basearch - Source
+baseurl=https://el7.cooluc.com/$releasever/Source
+failovermethod=priority
+enabled=1
+gpgcheck=1
+gpgkey=https://el7.cooluc.com/RPM-GPG-KEY-COOLUC-7

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Index of /7/Source/SPackages/</title>
+    <style>
+        :root {
+            --bg-color: #fafafa;
+            --card-bg: #ffffff;
+            --text-main: #202124;
+            --text-sub: #5f6368;
+            --link-color: #1a73e8;
+            --border-color: #f0f0f0;
+            --hover-bg: #f8f9fa;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 12px 12px 0 12px;
+            color: var(--text-main); 
+            background-color: var(--bg-color); 
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1 0 auto;
+            width: 100%;
+        }
+
+        .container { 
+            background: var(--card-bg); 
+            border-radius: 8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            padding: 16px; 
+            max-width: 1000px; 
+            margin: 0 auto; 
+        }
+
+        .breadcrumbs-wrapper {
+            overflow-x: auto;
+            white-space: nowrap;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .breadcrumbs { 
+            font-size: 16px; 
+            color: var(--text-main); 
+            font-weight: 400; 
+            display: inline-block;
+        }
+
+        .breadcrumbs a { 
+            color: var(--link-color); 
+            text-decoration: none; 
+        }
+
+        .breadcrumbs a:hover { 
+            text-decoration: underline; 
+        }
+
+        .breadcrumbs .separator { 
+            margin: 0 4px; 
+            color: var(--text-sub); 
+            user-select: none; 
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            text-align: left; 
+            table-layout: fixed;
+        }
+
+        th, td { 
+            padding: 12px 8px; 
+            border-bottom: 1px solid var(--border-color); 
+            word-break: break-word;
+        }
+
+        th { 
+            font-weight: 600; 
+            color: var(--text-sub); 
+            background-color: #f8f9fa; 
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+
+        th:hover {
+            background-color: #e8eaed;
+            color: var(--text-main);
+        }
+
+        th::after {
+            content: ' ↕';
+            opacity: 0.3;
+            font-size: 11px;
+        }
+
+        th.asc::after {
+            content: ' ▲';
+            opacity: 1;
+            color: var(--link-color);
+        }
+
+        th.desc::after {
+            content: ' ▼';
+            opacity: 1;
+            color: var(--link-color);
+        }
+
+        tr:hover { 
+            background-color: var(--hover-bg); 
+        }
+
+        .col-name { width: 55%; }
+        .col-date { width: 25%; }
+        .col-size { width: 20%; }
+
+        td a { 
+            color: var(--link-color); 
+            text-decoration: none; 
+            font-weight: 500; 
+            display: block; 
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        td a:hover { 
+            text-decoration: underline; 
+        }
+
+        .parent-dir { 
+            font-weight: bold; 
+            color: var(--text-sub); 
+        }
+
+        .size, .date { 
+            color: var(--text-sub); 
+            font-size: 13px; 
+        }
+
+        .footer {
+            flex-shrink: 0;
+            text-align: center;
+            padding: 20px 0;
+            font-size: 13px;
+            color: var(--text-sub);
+        }
+
+        .footer a {
+            color: var(--text-sub);
+            text-decoration: underline;
+        }
+
+        .footer a:hover {
+            color: var(--link-color);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 8px 8px 0 8px;
+            }
+
+            .container {
+                padding: 12px;
+                border-radius: 6px;
+            }
+
+            .breadcrumbs {
+                font-size: 15px;
+            }
+
+            th, td {
+                padding: 10px 4px;
+            }
+
+            .col-date, .date {
+                display: none;
+            }
+
+            .col-name { width: 70%; }
+            .col-size { width: 30%; text-align: right; }
+            th.col-size { text-align: right; }
+
+            td a {
+                padding: 4px 0;
+            }
+
+            .footer {
+                padding: 16px 0;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="container">
+            <div class="breadcrumbs-wrapper">
+                <div class="breadcrumbs">
+                    <a href="../../../">Index of</a><span class="separator">/</span><a href="../../">7</a><span class="separator">/</span><a href="../">Source</a><span class="separator">/</span><span>SPackages</span><span class="separator">/</span>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table id="file-table">
+                    <thead>
+                        <tr>
+                            <th class="col-name" onclick="sortTable(0, 'string')">Name</th>
+                            <th class="col-date" onclick="sortTable(1, 'number')">Last Modified</th>
+                            <th class="col-size" onclick="sortTable(2, 'number')">Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="col-name"><a class="parent-dir" href="../">📁 ..</a></td><td class="date" data-sort="0">-</td><td class="size" data-sort="-1">-</td></tr>
+                        <tr><td class="col-name" data-sort="1_babeltrace-1.5.11-8.el7.src.rpm"><a href="babeltrace-1.5.11-8.el7.src.rpm">📄 babeltrace-1.5.11-8.el7.src.rpm</a></td><td class="date" data-sort="1791937418.8939931">2026-10-14 08:23</td><td class="size" data-sort="1003007">979.50 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_boost183-1.83.0-8.el7.src.rpm"><a href="https://pub-17b28bde73924ec4bde64db0cb68f4b9.r2.dev/7/Source/SPackages/boost183-1.83.0-8.el7.src.rpm">📄 boost183-1.83.0-8.el7.src.rpm</a></td><td class="date" data-sort="1791937422.390993">2026-10-14 08:23</td><td class="size" data-sort="122574890">116.90 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-14.1-1.el7.src.rpm"><a href="devtoolset-14-14.1-1.el7.src.rpm">📄 devtoolset-14-14.1-1.el7.src.rpm</a></td><td class="date" data-sort="1791937422.9179933">2026-10-14 08:23</td><td class="size" data-sort="8127">7.94 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-annobin-13.02-2.el7.src.rpm"><a href="devtoolset-14-annobin-13.02-2.el7.src.rpm">📄 devtoolset-14-annobin-13.02-2.el7.src.rpm</a></td><td class="date" data-sort="1791937423.4079933">2026-10-14 08:23</td><td class="size" data-sort="1068630">1.02 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-autoconf-2.71-13.el7.src.rpm"><a href="devtoolset-14-autoconf-2.71-13.el7.src.rpm">📄 devtoolset-14-autoconf-2.71-13.el7.src.rpm</a></td><td class="date" data-sort="1791951613.978575">2026-10-14 12:20</td><td class="size" data-sort="1302297">1.24 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-automake-1.16.1-8.el7.src.rpm"><a href="devtoolset-14-automake-1.16.1-8.el7.src.rpm">📄 devtoolset-14-automake-1.16.1-8.el7.src.rpm</a></td><td class="date" data-sort="1791951615.1549933">2026-10-14 12:20</td><td class="size" data-sort="1568836">1.50 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-binutils-2.41-63.el7.src.rpm"><a href="devtoolset-14-binutils-2.41-63.el7.src.rpm">📄 devtoolset-14-binutils-2.41-63.el7.src.rpm</a></td><td class="date" data-sort="1791937425.8409932">2026-10-14 08:23</td><td class="size" data-sort="27763181">26.48 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-cmake-3.31.8-1.el7.src.rpm"><a href="devtoolset-14-cmake-3.31.8-1.el7.src.rpm">📄 devtoolset-14-cmake-3.31.8-1.el7.src.rpm</a></td><td class="date" data-sort="1791951615.1719933">2026-10-14 12:20</td><td class="size" data-sort="11688808">11.15 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-dwz-0.16-1.el7.src.rpm"><a href="devtoolset-14-dwz-0.16-1.el7.src.rpm">📄 devtoolset-14-dwz-0.16-1.el7.src.rpm</a></td><td class="date" data-sort="1791937426.321993">2026-10-14 08:23</td><td class="size" data-sort="164132">160.29 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-dyninst-13.0.0-1.el7.src.rpm"><a href="devtoolset-14-dyninst-13.0.0-1.el7.src.rpm">📄 devtoolset-14-dyninst-13.0.0-1.el7.src.rpm</a></td><td class="date" data-sort="1791937427.0039933">2026-10-14 08:23</td><td class="size" data-sort="8034849">7.66 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-elfutils-0.194-2.el7.src.rpm"><a href="devtoolset-14-elfutils-0.194-2.el7.src.rpm">📄 devtoolset-14-elfutils-0.194-2.el7.src.rpm</a></td><td class="date" data-sort="1791937427.6659932">2026-10-14 08:23</td><td class="size" data-sort="12089539">11.53 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-gcc-14.3.1-4.el7.src.rpm"><a href="devtoolset-14-gcc-14.3.1-4.el7.src.rpm">📄 devtoolset-14-gcc-14.3.1-4.el7.src.rpm</a></td><td class="date" data-sort="1791937430.1219933">2026-10-14 08:23</td><td class="size" data-sort="93121905">88.81 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-gdb-16.3-3.el7.src.rpm"><a href="devtoolset-14-gdb-16.3-3.el7.src.rpm">📄 devtoolset-14-gdb-16.3-3.el7.src.rpm</a></td><td class="date" data-sort="1791937431.6749933">2026-10-14 08:23</td><td class="size" data-sort="24811657">23.66 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-ltrace-0.7.91-53.el7.src.rpm"><a href="devtoolset-14-ltrace-0.7.91-53.el7.src.rpm">📄 devtoolset-14-ltrace-0.7.91-53.el7.src.rpm</a></td><td class="date" data-sort="1791937432.2599933">2026-10-14 08:23</td><td class="size" data-sort="632500">617.68 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-make-4.4.1-9.el7.src.rpm"><a href="devtoolset-14-make-4.4.1-9.el7.src.rpm">📄 devtoolset-14-make-4.4.1-9.el7.src.rpm</a></td><td class="date" data-sort="1791937432.8289933">2026-10-14 08:23</td><td class="size" data-sort="2354199">2.25 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-strace-6.12-3.el7.src.rpm"><a href="devtoolset-14-strace-6.12-3.el7.src.rpm">📄 devtoolset-14-strace-6.12-3.el7.src.rpm</a></td><td class="date" data-sort="1791937433.3139932">2026-10-14 08:23</td><td class="size" data-sort="2668564">2.54 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-systemtap-5.4-3.el7.src.rpm"><a href="devtoolset-14-systemtap-5.4-3.el7.src.rpm">📄 devtoolset-14-systemtap-5.4-3.el7.src.rpm</a></td><td class="date" data-sort="1791937433.9059932">2026-10-14 08:23</td><td class="size" data-sort="6622291">6.32 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-14-valgrind-3.26.0-5.el7.src.rpm"><a href="devtoolset-14-valgrind-3.26.0-5.el7.src.rpm">📄 devtoolset-14-valgrind-3.26.0-5.el7.src.rpm</a></td><td class="date" data-sort="1791937434.6829932">2026-10-14 08:23</td><td class="size" data-sort="16937346">16.15 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-16.0-1.el7.src.rpm"><a href="devtoolset-16-16.0-1.el7.src.rpm">📄 devtoolset-16-16.0-1.el7.src.rpm</a></td><td class="date" data-sort="1791937435.1999931">2026-10-14 08:23</td><td class="size" data-sort="7437">7.26 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-annobin-13.02-2.el7.src.rpm"><a href="devtoolset-16-annobin-13.02-2.el7.src.rpm">📄 devtoolset-16-annobin-13.02-2.el7.src.rpm</a></td><td class="date" data-sort="1791937435.765993">2026-10-14 08:23</td><td class="size" data-sort="1068630">1.02 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-autoconf-2.71-13.el7.src.rpm"><a href="devtoolset-16-autoconf-2.71-13.el7.src.rpm">📄 devtoolset-16-autoconf-2.71-13.el7.src.rpm</a></td><td class="date" data-sort="1791951617.0099933">2026-10-14 12:20</td><td class="size" data-sort="1302299">1.24 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-automake-1.16.1-8.el7.src.rpm"><a href="devtoolset-16-automake-1.16.1-8.el7.src.rpm">📄 devtoolset-16-automake-1.16.1-8.el7.src.rpm</a></td><td class="date" data-sort="1791951617.8821607">2026-10-14 12:20</td><td class="size" data-sort="1568835">1.50 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-binutils-2.46-3.el7.src.rpm"><a href="devtoolset-16-binutils-2.46-3.el7.src.rpm">📄 devtoolset-16-binutils-2.46-3.el7.src.rpm</a></td><td class="date" data-sort="1791937437.765993">2026-10-14 08:23</td><td class="size" data-sort="29883655">28.50 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-cmake-3.31.8-1.el7.src.rpm"><a href="devtoolset-16-cmake-3.31.8-1.el7.src.rpm">📄 devtoolset-16-cmake-3.31.8-1.el7.src.rpm</a></td><td class="date" data-sort="1791951617.8939931">2026-10-14 12:20</td><td class="size" data-sort="11688805">11.15 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-dwz-0.16-1.el7.src.rpm"><a href="devtoolset-16-dwz-0.16-1.el7.src.rpm">📄 devtoolset-16-dwz-0.16-1.el7.src.rpm</a></td><td class="date" data-sort="1791937438.3329933">2026-10-14 08:23</td><td class="size" data-sort="164131">160.28 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-dyninst-13.0.0-1.el7.src.rpm"><a href="devtoolset-16-dyninst-13.0.0-1.el7.src.rpm">📄 devtoolset-16-dyninst-13.0.0-1.el7.src.rpm</a></td><td class="date" data-sort="1791937439.3609931">2026-10-14 08:23</td><td class="size" data-sort="8034852">7.66 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-elfutils-0.194-2.el7.src.rpm"><a href="devtoolset-16-elfutils-0.194-2.el7.src.rpm">📄 devtoolset-16-elfutils-0.194-2.el7.src.rpm</a></td><td class="date" data-sort="1791937440.1819932">2026-10-14 08:24</td><td class="size" data-sort="12089538">11.53 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-gcc-16.2.1-1.2.el7.src.rpm"><a href="devtoolset-16-gcc-16.2.1-1.2.el7.src.rpm">📄 devtoolset-16-gcc-16.2.1-1.2.el7.src.rpm</a></td><td class="date" data-sort="1791937442.8559933">2026-10-14 08:24</td><td class="size" data-sort="103964135">99.15 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-gdb-16.3-3.el7.src.rpm"><a href="devtoolset-16-gdb-16.3-3.el7.src.rpm">📄 devtoolset-16-gdb-16.3-3.el7.src.rpm</a></td><td class="date" data-sort="1791937444.5049932">2026-10-14 08:24</td><td class="size" data-sort="24811651">23.66 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-ltrace-0.7.91-53.el7.src.rpm"><a href="devtoolset-16-ltrace-0.7.91-53.el7.src.rpm">📄 devtoolset-16-ltrace-0.7.91-53.el7.src.rpm</a></td><td class="date" data-sort="1791937445.1579933">2026-10-14 08:24</td><td class="size" data-sort="632499">617.67 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-make-4.4.1-9.el7.src.rpm"><a href="devtoolset-16-make-4.4.1-9.el7.src.rpm">📄 devtoolset-16-make-4.4.1-9.el7.src.rpm</a></td><td class="date" data-sort="1791937445.8379931">2026-10-14 08:24</td><td class="size" data-sort="2354198">2.25 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-strace-6.12-3.el7.src.rpm"><a href="devtoolset-16-strace-6.12-3.el7.src.rpm">📄 devtoolset-16-strace-6.12-3.el7.src.rpm</a></td><td class="date" data-sort="1791937446.3939931">2026-10-14 08:24</td><td class="size" data-sort="2668562">2.54 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-systemtap-5.4-3.el7.src.rpm"><a href="devtoolset-16-systemtap-5.4-3.el7.src.rpm">📄 devtoolset-16-systemtap-5.4-3.el7.src.rpm</a></td><td class="date" data-sort="1791937447.071993">2026-10-14 08:24</td><td class="size" data-sort="6622294">6.32 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_devtoolset-16-valgrind-3.26.0-5.el7.src.rpm"><a href="devtoolset-16-valgrind-3.26.0-5.el7.src.rpm">📄 devtoolset-16-valgrind-3.26.0-5.el7.src.rpm</a></td><td class="date" data-sort="1791937447.877993">2026-10-14 08:24</td><td class="size" data-sort="16937342">16.15 MiB</td></tr>
+<tr><td class="col-name" data-sort="1_xxhash-0.8.2-11.el7.src.rpm"><a href="xxhash-0.8.2-11.el7.src.rpm">📄 xxhash-0.8.2-11.el7.src.rpm</a></td><td class="date" data-sort="1791937448.5469933">2026-10-14 08:24</td><td class="size" data-sort="1067919">1.02 MiB</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer class="footer">
+        Powered by <a href="https://pages.github.com/" target="_blank" rel="noopener">GitHub Pages</a> | Served by EdgeOne
+    </footer>
+    <script>
+        let sortDirections = [true, true, true];
+
+        function sortTable(colIndex, type) {
+            const table = document.getElementById("file-table");
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const headers = table.querySelectorAll("th");
+
+            let parentRow = null;
+            if (rows.length > 0 && rows[0].querySelector(".parent-dir")) {
+                parentRow = rows.shift();
+            }
+
+            const isAscending = sortDirections[colIndex];
+            sortDirections[colIndex] = !isAscending;
+
+            headers.forEach((h, idx) => {
+                if (idx === colIndex) {
+                    h.classList.remove("asc", "desc");
+                    h.classList.add(isAscending ? "asc" : "desc");
+                } else {
+                    h.classList.remove("asc", "desc");
+                }
+            });
+
+            rows.sort((rowA, rowB) => {
+                const cellA = rowA.children[colIndex];
+                const cellB = rowB.children[colIndex];
+
+                let valA = cellA.getAttribute("data-sort") || cellA.textContent.trim();
+                let valB = cellB.getAttribute("data-sort") || cellB.textContent.trim();
+
+                if (type === "number") {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+
+                if (valA < valB) return isAscending ? -1 : 1;
+                if (valA > valB) return isAscending ? 1 : -1;
+                return 0;
+            });
+
+            tbody.innerHTML = "";
+            if (parentRow) tbody.appendChild(parentRow);
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Index of /7/Source/repodata/</title>
+    <style>
+        :root {
+            --bg-color: #fafafa;
+            --card-bg: #ffffff;
+            --text-main: #202124;
+            --text-sub: #5f6368;
+            --link-color: #1a73e8;
+            --border-color: #f0f0f0;
+            --hover-bg: #f8f9fa;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 12px 12px 0 12px;
+            color: var(--text-main); 
+            background-color: var(--bg-color); 
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-content {
+            flex: 1 0 auto;
+            width: 100%;
+        }
+
+        .container { 
+            background: var(--card-bg); 
+            border-radius: 8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            padding: 16px; 
+            max-width: 1000px; 
+            margin: 0 auto; 
+        }
+
+        .breadcrumbs-wrapper {
+            overflow-x: auto;
+            white-space: nowrap;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .breadcrumbs { 
+            font-size: 16px; 
+            color: var(--text-main); 
+            font-weight: 400; 
+            display: inline-block;
+        }
+
+        .breadcrumbs a { 
+            color: var(--link-color); 
+            text-decoration: none; 
+        }
+
+        .breadcrumbs a:hover { 
+            text-decoration: underline; 
+        }
+
+        .breadcrumbs .separator { 
+            margin: 0 4px; 
+            color: var(--text-sub); 
+            user-select: none; 
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            text-align: left; 
+            table-layout: fixed;
+        }
+
+        th, td { 
+            padding: 12px 8px; 
+            border-bottom: 1px solid var(--border-color); 
+            word-break: break-word;
+        }
+
+        th { 
+            font-weight: 600; 
+            color: var(--text-sub); 
+            background-color: #f8f9fa; 
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+
+        th:hover {
+            background-color: #e8eaed;
+            color: var(--text-main);
+        }
+
+        th::after {
+            content: ' ↕';
+            opacity: 0.3;
+            font-size: 11px;
+        }
+
+        th.asc::after {
+            content: ' ▲';
+            opacity: 1;
+            color: var(--link-color);
+        }
+
+        th.desc::after {
+            content: ' ▼';
+            opacity: 1;
+            color: var(--link-color);
+        }
+
+        tr:hover { 
+            background-color: var(--hover-bg); 
+        }
+
+        .col-name { width: 55%; }
+        .col-date { width: 25%; }
+        .col-size { width: 20%; }
+
+        td a { 
+            color: var(--link-color); 
+            text-decoration: none; 
+            font-weight: 500; 
+            display: block; 
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        td a:hover { 
+            text-decoration: underline; 
+        }
+
+        .parent-dir { 
+            font-weight: bold; 
+            color: var(--text-sub); 
+        }
+
+        .size, .date { 
+            color: var(--text-sub); 
+            font-size: 13px; 
+        }
+
+        .footer {
+            flex-shrink: 0;
+            text-align: center;
+            padding: 20px 0;
+            font-size: 13px;
+            color: var(--text-sub);
+        }
+
+        .footer a {
+            color: var(--text-sub);
+            text-decoration: underline;
+        }
+
+        .footer a:hover {
+            color: var(--link-color);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 8px 8px 0 8px;
+            }
+
+            .container {
+                padding: 12px;
+                border-radius: 6px;
+            }
+
+            .breadcrumbs {
+                font-size: 15px;
+            }
+
+            th, td {
+                padding: 10px 4px;
+            }
+
+            .col-date, .date {
+                display: none;
+            }
+
+            .col-name { width: 70%; }
+            .col-size { width: 30%; text-align: right; }
+            th.col-size { text-align: right; }
+
+            td a {
+                padding: 4px 0;
+            }
+
+            .footer {
+                padding: 16px 0;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="container">
+            <div class="breadcrumbs-wrapper">
+                <div class="breadcrumbs">
+                    <a href="../../../">Index of</a><span class="separator">/</span><a href="../../">7</a><span class="separator">/</span><a href="../">Source</a><span class="separator">/</span><span>repodata</span><span class="separator">/</span>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table id="file-table">
+                    <thead>
+                        <tr>
+                            <th class="col-name" onclick="sortTable(0, 'string')">Name</th>
+                            <th class="col-date" onclick="sortTable(1, 'number')">Last Modified</th>
+                            <th class="col-size" onclick="sortTable(2, 'number')">Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="col-name"><a class="parent-dir" href="../">📁 ..</a></td><td class="date" data-sort="0">-</td><td class="size" data-sort="-1">-</td></tr>
+                        <tr><td class="col-name" data-sort="1_48d15c8d4d00faa8c22c6fbb2f673c1f3b1da0a198be38a2267b7e6974a81084-other.xml.gz"><a href="48d15c8d4d00faa8c22c6fbb2f673c1f3b1da0a198be38a2267b7e6974a81084-other.xml.gz">📄 48d15c8d4d00faa8c22c6fbb2f673c1f3b1da0a198be38a2267b7e6974a81084-other.xml.gz</a></td><td class="date" data-sort="1791951680.9809933">2026-10-14 12:21</td><td class="size" data-sort="12866">12.56 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_4a1589850309313845001e801ae72827e263fbbcc44fe7cb2d1042c8f9ee7be5-other.sqlite.bz2"><a href="4a1589850309313845001e801ae72827e263fbbcc44fe7cb2d1042c8f9ee7be5-other.sqlite.bz2">📄 4a1589850309313845001e801ae72827e263fbbcc44fe7cb2d1042c8f9ee7be5-other.sqlite.bz2</a></td><td class="date" data-sort="1791951681.0139933">2026-10-14 12:21</td><td class="size" data-sort="17106">16.71 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_5b50b7509fa31afb2f268109b66f16231d7d06e2650f5570fff598b2ff5bd5e5-primary.sqlite.bz2"><a href="5b50b7509fa31afb2f268109b66f16231d7d06e2650f5570fff598b2ff5bd5e5-primary.sqlite.bz2">📄 5b50b7509fa31afb2f268109b66f16231d7d06e2650f5570fff598b2ff5bd5e5-primary.sqlite.bz2</a></td><td class="date" data-sort="1791951681.094993">2026-10-14 12:21</td><td class="size" data-sort="19875">19.41 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_707330b87775e8c8a5fb874653650a501bd6e810ba2eba4d99d7614912938749-filelists.sqlite.bz2"><a href="707330b87775e8c8a5fb874653650a501bd6e810ba2eba4d99d7614912938749-filelists.sqlite.bz2">📄 707330b87775e8c8a5fb874653650a501bd6e810ba2eba4d99d7614912938749-filelists.sqlite.bz2</a></td><td class="date" data-sort="1791951681.0369933">2026-10-14 12:21</td><td class="size" data-sort="7818">7.63 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_7b98c5018eface90e6db8a650da0ebe9603810f2c8f1beb8c97384e14b547960-primary.xml.gz"><a href="7b98c5018eface90e6db8a650da0ebe9603810f2c8f1beb8c97384e14b547960-primary.xml.gz">📄 7b98c5018eface90e6db8a650da0ebe9603810f2c8f1beb8c97384e14b547960-primary.xml.gz</a></td><td class="date" data-sort="1791951680.979993">2026-10-14 12:21</td><td class="size" data-sort="9640">9.41 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_c40ca019ccabbfd760ec093dd7d9cf29aca3aa118cd5977805102425f4a88bd2-filelists.xml.gz"><a href="c40ca019ccabbfd760ec093dd7d9cf29aca3aa118cd5977805102425f4a88bd2-filelists.xml.gz">📄 c40ca019ccabbfd760ec093dd7d9cf29aca3aa118cd5977805102425f4a88bd2-filelists.xml.gz</a></td><td class="date" data-sort="1791951680.9809933">2026-10-14 12:21</td><td class="size" data-sort="5664">5.53 KiB</td></tr>
+<tr><td class="col-name" data-sort="1_repomd.xml"><a href="repomd.xml">📄 repomd.xml</a></td><td class="date" data-sort="1791951681.0969932">2026-10-14 12:21</td><td class="size" data-sort="2978">2.91 KiB</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer class="footer">
+        Powered by <a href="https://pages.github.com/" target="_blank" rel="noopener">GitHub Pages</a> | Served by EdgeOne
+    </footer>
+    <script>
+        let sortDirections = [true, true, true];
+
+        function sortTable(colIndex, type) {
+            const table = document.getElementById("file-table");
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const headers = table.querySelectorAll("th");
+
+            let parentRow = null;
+            if (rows.length > 0 && rows[0].querySelector(".parent-dir")) {
+                parentRow = rows.shift();
+            }
+
+            const isAscending = sortDirections[colIndex];
+            sortDirections[colIndex] = !isAscending;
+
+            headers.forEach((h, idx) => {
+                if (idx === colIndex) {
+                    h.classList.remove("asc", "desc");
+                    h.classList.add(isAscending ? "asc" : "desc");
+                } else {
+                    h.classList.remove("asc", "desc");
+                }
+            });
+
+            rows.sort((rowA, rowB) => {
+                const cellA = rowA.children[colIndex];
+                const cellB = rowB.children[colIndex];
+
+                let valA = cellA.getAttribute("data-sort") || cellA.textContent.trim();
+                let valB = cellB.getAttribute("data-sort") || cellB.textContent.trim();
+
+                if (type === "number") {
+                    valA = parseFloat(valA) || 0;
+                    valB = parseFloat(valB) || 0;
+                } else {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+
+                if (valA < valB) return isAscending ? -1 : 1;
+                if (valA > valB) return isAscending ? 1 : -1;
+                return 0;
+            });
+
+            tbody.innerHTML = "";
+            if (parentRow) tbody.appendChild(parentRow);
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+</body>
+</html>
