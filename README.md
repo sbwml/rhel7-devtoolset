@@ -87,7 +87,7 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 Configure the YUM repository on CentOS 7 / RHEL 7:
 
 ```bash
-curl -o /etc/yum.repos.d/devtoolset-el7.repo https://el7.cooluc.com/devtoolset-el7.repo
+curl -o /etc/yum.repos.d/devtoolset-latest.repo https://el7.cooluc.com/devtoolset-latest.repo
 ```
 
 ### Installing devtoolset-16
