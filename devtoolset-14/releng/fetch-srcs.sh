@@ -44,6 +44,7 @@ urls_for() {
     make-4.4.1.tar.gz) echo "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz https://mirrors.ustc.edu.cn/gnu/make/make-4.4.1.tar.gz";;
     automake-1.16.1.tar.xz) echo "https://ftp.gnu.org/gnu/automake/automake-1.16.1.tar.xz https://mirrors.ustc.edu.cn/gnu/automake/automake-1.16.1.tar.xz";;
     autoconf-2.71.tar.xz) echo "https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.xz https://mirror.sjtu.edu.cn/gnu/autoconf/autoconf-2.71.tar.xz";;
+    cmake-3.31.8.tar.gz) echo "https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8.tar.gz https://cmake.org/files/v3.31/cmake-3.31.8.tar.gz";;
     # EL10 baseline (Rocky Linux 10)
     annobin-13.02.tar.xz) echo "https://nickc.fedorapeople.org/annobin-13.02.tar.xz";;
     binutils-2.41.tar.xz) echo "https://ftp.gnu.org/gnu/binutils/binutils-2.41.tar.xz https://mirrors.ustc.edu.cn/gnu/binutils/binutils-2.41.tar.xz";;

@@ -11,6 +11,7 @@ Upstream repository mirror: `https://mirror.sjtu.edu.cn/rocky/10/<repo>/source/t
 | make | `make-4.4.1-9.el10.src.rpm` | 4.4.1 | BaseOS |
 | autoconf | `autoconf-2.71-13.el10.src.rpm` | 2.71 | AppStream |
 | automake | `automake-1.16.1-8.el8.src.rpm` | 1.16.1 | AppStream |
+| cmake | `cmake-3.31.8-1.el10.src.rpm` | 3.31.8 | AppStream |
 | elfutils | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | 0.194 | BaseOS |
 | strace | `strace-6.12-3.el10.src.rpm` | 6.12 | BaseOS |
 | annobin | `annobin-13.02-2.el10.src.rpm` | 13.02 | AppStream |

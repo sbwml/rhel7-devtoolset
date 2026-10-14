@@ -46,7 +46,7 @@ RUN yum -y install yum-utils rpm-build createrepo rpmdevtools rpm-sign gnupg2 \
       elfutils-debuginfod-client-devel ncurses-devel readline-devel expat-devel \
       libstdc++-devel gmp-devel mpfr-devel libmpc-devel isl-devel xz-devel \
       guile-devel libtool-ltdl-devel help2man iso-codes \
-      libuuid-devel popt-devel glib2-devel && \
+      libuuid-devel popt-devel glib2-devel openssl-devel && \
     yum -y install devtoolset-12-gcc devtoolset-12-gcc-c++ devtoolset-12-make \
       devtoolset-12-binutils devtoolset-12-runtime devtoolset-12-elfutils \
       devtoolset-12-gdb && \

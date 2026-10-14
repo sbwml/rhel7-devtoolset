@@ -543,6 +543,12 @@ PYEOF
 install_built_prereqs() {
   local comp="$1"
   case "$comp" in
+    cmake)
+      if ! rpm -q openssl-devel >/dev/null 2>&1; then
+        log "install build requirements for cmake (openssl-devel)"
+        yum -y install openssl-devel 2>&1 | tail -5 || true
+      fi
+      ;;
     babeltrace)
       if ! rpm -q libuuid-devel popt-devel glib2-devel >/dev/null 2>&1; then
         log "install build requirements for babeltrace (libuuid-devel, popt-devel, glib2-devel)"

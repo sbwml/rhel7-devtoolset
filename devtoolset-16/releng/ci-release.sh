@@ -16,7 +16,7 @@ BUNDLE_PREFIX="${BUNDLE_PREFIX:-}"
 source "$SRCDIR/releng/ci-common.sh"
 set +e
 
-ALL_ORDER="xxhash babeltrace boost183 autoconf automake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
+ALL_ORDER="xxhash babeltrace boost183 autoconf automake cmake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb gcc meta"
 ORDER="${COMPS:-$ALL_ORDER}"
 
 log "===== devtoolset-16 release build (tag=$RELEASE_TAG) ====="

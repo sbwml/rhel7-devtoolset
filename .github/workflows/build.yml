@@ -103,11 +103,11 @@ jobs:
                 BUNDLE_PREFIX="full_"
                 ;;
               deps)
-                COMPS="dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
+                COMPS="cmake dwz ltrace strace make annobin elfutils binutils valgrind dyninst systemtap gdb"
                 BUNDLE_PREFIX="dep_"
                 ;;
               prereqs)
-                COMPS="xxhash babeltrace boost183 autoconf"
+                COMPS="xxhash babeltrace boost183 autoconf cmake"
                 BUNDLE_PREFIX="prereqs_"
                 ;;
               gcc)

@@ -35,6 +35,7 @@ Both toolsets are packaged to run under CentOS 7's RPM 4.11 and glibc 2.17 runti
 | Make | 4.4.1 | `make-4.4.1-9.el10.src.rpm` | `devtoolset-16-make` |
 | Autoconf | 2.71 | `autoconf-2.71-13.el10.src.rpm` | `devtoolset-16-autoconf` |
 | Automake | 1.16.1 | `automake-1.16.1-8.el8.src.rpm` | `devtoolset-16-automake` |
+| CMake | 3.31.8 | `cmake-3.31.8-1.el10.src.rpm` | `devtoolset-16-cmake` |
 | Elfutils | 0.194 | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | `devtoolset-16-elfutils` |
 | Strace | 6.12 | `strace-6.12-3.el10.src.rpm` | `devtoolset-16-strace` |
 | Annobin | 13.02 | `annobin-13.02-2.el10.src.rpm` | `devtoolset-16-annobin` |
@@ -60,6 +61,7 @@ For exact upstream SRPM hashes and Koji builds, see [EL10-BASELINE.md](devtoolse
 | Make | 4.4.1 | `make-4.4.1-9.el10.src.rpm` | `devtoolset-14-make` |
 | Autoconf | 2.71 | `autoconf-2.71-13.el10.src.rpm` | `devtoolset-14-autoconf` |
 | Automake | 1.16.1 | `automake-1.16.1-8.el8.src.rpm` | `devtoolset-14-automake` |
+| CMake | 3.31.8 | `cmake-3.31.8-1.el10.src.rpm` | `devtoolset-14-cmake` |
 | Elfutils | 0.194 | `elfutils-0.194-2.el10.rocky.0.1.src.rpm` | `devtoolset-14-elfutils` |
 | Strace | 6.12 | `strace-6.12-3.el10.src.rpm` | `devtoolset-14-strace` |
 | Annobin | 13.02 | `annobin-13.02-2.el10.src.rpm` | `devtoolset-14-annobin` |
